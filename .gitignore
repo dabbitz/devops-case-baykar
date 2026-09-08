@@ -1,0 +1,28 @@
+# Node dependencies
+node_modules/
+
+# Environment / secrets
+.env
+.env.*
+config.env
+atlas-credentials.env
+
+# React build output
+build/
+
+# Cypress generated files
+**cypress/videos/
+**cypress/screenshots/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+mern-project/client/cypress/videos/
+mern-project/client/cypress/screenshots/
