@@ -30,3 +30,5 @@ Case gereksinimleri, teslim kapsamı ve değerlendirme bilgileri için **`DevOps
 - Çalışan sisteme ait zorunlu ekran görüntüleri `docs/screenshots/` altında paylaşılmalı ve `TESLIM_KANITLARI.md` içinde açıklanmalıdır.
 
 Ayrıntılı ana kriterler, üst kriterler, teslim kanıtları ve case sonu soruları Word dokümanında yer almaktadır.
+
+README dosyasına eklenen bu yazı, Python ETL'de değişiklik olduğu zaman tabloya yeni bir document eklemek yerine var olan id'li document'ın update edildiğini göstermek içindir. Ayrıca Python dosyası güncellenmiş, orijinal ETL dosyasının saklanması için bir dosya oluşturulmuş, ve requirements.txt eklenmiştir.
