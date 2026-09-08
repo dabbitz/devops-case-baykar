@@ -1,6 +1,7 @@
 import requests
 import os
 from pymongo import MongoClient
+from pymongo.errors import PyMongoError
 
 # Configuration
 GITHUB_OWNER = os.getenv("GITHUB_OWNER", "dabbitz")
@@ -18,7 +19,7 @@ if not GITHUB_TOKEN:
 if not MONGODB_URI:
     raise RuntimeError("MONGODB_URI environment variable is not set.")
 
-#GitHub API
+# GitHub API
 url = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 
 headers = {
@@ -27,55 +28,85 @@ headers = {
     "X-GitHub-Api-Version": "2026-03-10",
 }
 
-print(f"Fetching repository: {GITHUB_OWNER}/{GITHUB_REPO}")
+print(f"[INFO] Fetching repository: {GITHUB_OWNER}/{GITHUB_REPO}")
 
-response = requests.get(url, headers=headers, timeout=15)
-response.raise_for_status()
+try:
+    response = requests.get(url, headers=headers, timeout=15)
+    response.raise_for_status()
+except requests.exceptions.Timeout:
+    raise RuntimeError("GitHub API request timed out.")
+except requests.exceptions.HTTPError as exc:
+    raise RuntimeError(
+        f"GitHub API returned HTTP {response.status_code}: "
+        f"{response.text}"
+    ) from exc
+except requests.exceptions.RequestException as exc:
+    raise RuntimeError(f"GitHub API request failed: {exc}") from exc
 
 repo = response.json()
 
-print(f"Github repository received: " f"{repo['full_name']} (id ={repo['id']})")
+print(
+    f"[INFO] Github repository received: " 
+    f"{repo['full_name']} "
+    f"(id={repo['id']})"
+    )
 
 # MongoDB
-client = MongoClient(MONGODB_URI)
+client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=10000)
 
-db = client[MONGODB_DB]
-collection = db[MONGODB_COLLECTION]
+try:
+    print("[INFO] Connecting to MongoDB...")
 
-# Prevent duplicate repository documents
-collection.create_index("github_id", unique=True)
+    client.admin.command("ping")
 
-# Transform
-document = {
-    "github_id": repo["id"],
-    "name": repo["name"],
-    "full_name": repo["full_name"],
-    "description": repo["description"],
-    "html_url": repo["html_url"],
-    "language": repo["language"],
-    "stargazers_count": repo["stargazers_count"],
-    "forks_count": repo["forks_count"],
-    "open_issues_count": repo["open_issues_count"],
-    "default_branch": repo["default_branch"],
-    "private": repo["private"],
-    "updated_at": repo["updated_at"]
-}
+    db = client[MONGODB_DB]
+    collection = db[MONGODB_COLLECTION]
 
-# Upsert (Insert if not exists, update if it does)
-result = collection.update_one(
-    {"github_id": repo['id']},
-    {"$set": document},
-    upsert=True
-)
+    print(
+        f"[INFO] MongoDB connection successful: "
+        f"{MONGODB_DB}.{MONGODB_COLLECTION}"
+    )
 
-# Logging
-if result.upserted_id is not None:
-    print(f"INSERT: repository added " 
-          f"(github_id={repo['id']})")
-else:
-    print(f"UPDATE: repository updated " 
-          f"(github_id={repo['id']})")
+    # Prevent duplicate repository documents
+    collection.create_index("github_id", unique=True)
 
-print(f"MongoDB document count: {collection.count_documents({})}")
+    # Transform
+    document = {
+        "github_id": repo["id"],
+        "name": repo["name"],
+        "full_name": repo["full_name"],
+        "description": repo["description"],
+        "html_url": repo["html_url"],
+        "language": repo["language"],
+        "stargazers_count": repo["stargazers_count"],
+        "forks_count": repo["forks_count"],
+        "open_issues_count": repo["open_issues_count"],
+        "default_branch": repo["default_branch"],
+        "private": repo["private"],
+        "updated_at": repo["updated_at"]
+    }
 
-client.close()
+    # Upsert (Insert if not exists, update if it does)
+    result = collection.update_one(
+        {"github_id": repo['id']},
+        {"$set": document},
+        upsert=True
+    )
+
+    # Logging
+    if result.upserted_id is not None:
+        print(f"[INFO] INSERT: repository added " 
+            f"(github_id={repo['id']})")
+    else:
+        print(f"[INFO] UPDATE: repository updated " 
+            f"(github_id={repo['id']})")
+
+    print(f"[INFO] MongoDB document count: " 
+        f"{collection.count_documents({})}")
+
+    print("[INFO] ETL completed successfully.")
+except PyMongoError as exc:
+    raise RuntimeError(f"MongoDB operation failed: {exc}") from exc
+finally:
+    client.close()
+    print("[INFO] MongoDB connection closed.")
