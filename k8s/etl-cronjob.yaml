@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: CronJob
+
+metadata:
+  name: etl
+  namespace: devops-case
+
+spec:
+  schedule: "0 * * * *"
+  timeZone: "Europe/Istanbul"
+
+  concurrencyPolicy: Forbid
+
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+
+      template:
+        spec:
+          restartPolicy: Never
+
+          containers:
+            - name: etl
+              image: devops-case-etl:k8s
+              imagePullPolicy: Never
+
+              env:
+                - name: GITHUB_OWNER
+                  value: "dabbitz"
+
+                - name: GITHUB_REPO
+                  value: "devops-case-baykar"
+
+                - name: GITHUB_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: etl-secret
+                      key: GITHUB_TOKEN
+
+                - name: MONGODB_URI
+                  valueFrom:
+                    secretKeyRef:
+                      name: etl-secret
+                      key: MONGODB_URI
+
+                - name: MONGODB_DB
+                  value: "sample_training"
+
+                - name: MONGODB_COLLECTION
+                  value: "github_repositories"

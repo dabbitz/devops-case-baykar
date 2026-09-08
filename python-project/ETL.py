@@ -83,7 +83,8 @@ try:
         "open_issues_count": repo["open_issues_count"],
         "default_branch": repo["default_branch"],
         "private": repo["private"],
-        "updated_at": repo["updated_at"]
+        "updated_at": repo["updated_at"],
+        "pushed_at": repo["pushed_at"]
     }
 
     # Upsert (Insert if not exists, update if it does)
