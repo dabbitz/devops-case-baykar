@@ -1,0 +1,33 @@
+services:
+  frontend:
+    build:
+      context: ./mern-project/client
+      args:
+        REACT_APP_API_URL: http://localhost:5050
+    container_name: devops-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./mern-project/server
+    container_name: devops-backend
+    ports:
+      - "5050:5050"
+    environment:
+      ATLAS_URI: ${ATLAS_URI}
+      ALLOWED_ORIGIN: http://localhost:3000
+
+  etl:
+    build:
+      context: ./python-project
+    container_name: devops-etl
+    environment:
+      GITHUB_OWNER: ${GITHUB_OWNER:-dabbitz}
+      GITHUB_REPO: ${GITHUB_REPO:-devops-case-baykar}
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      MONGODB_URI: ${MONGODB_URI}
+      MONGODB_DB: ${MONGODB_DB:-sample_training}
+      MONGODB_COLLECTION: ${MONGODB_COLLECTION:-github_repositories}
