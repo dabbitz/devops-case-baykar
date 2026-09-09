@@ -1,0 +1,73 @@
+name: DevOps Case CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Frontend
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mern-project/client/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: mern-project/client
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: mern-project/client
+        run: npm run build
+
+      # Backend
+      - name: Setup Node.js for backend
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mern-project/server/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: mern-project/server
+        run: npm ci
+
+      - name: Validate backend
+        working-directory: mern-project/server
+        run: node --check server.mjs
+
+      # Python ETL
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install ETL dependencies
+        working-directory: python-project
+        run: pip install -r requirements.txt
+
+      - name: Validate ETL syntax
+        working-directory: python-project
+        run: python -m py_compile ETL.py
+
+      # Docker
+      - name: Build backend image
+        run: docker build -t devops-case-backend:ci ./mern-project/server
+
+      - name: Build frontend image
+        run: docker build --build-arg REACT_APP_API_URL=/api -t devops-case-frontend:ci ./mern-project/client
+
+      - name: Build ETL image
+        run: docker build -t devops-case-etl:ci ./python-project
