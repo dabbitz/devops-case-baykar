@@ -25,6 +25,13 @@ spec:
           containers:
             - name: etl
               image: devops-case-etl:k8s
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 10001
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
               imagePullPolicy: Never
 
               env:

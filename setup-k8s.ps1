@@ -98,7 +98,7 @@ Write-Host "Required .env values found." -ForegroundColor Green
 # 2. Namespace
 # ------------------------------------------------------------
 
-Write-Host "`n[1/7] Creating namespace..." -ForegroundColor Yellow
+Write-Host "`n[1/9] Creating namespace..." -ForegroundColor Yellow
 
 kubectl apply -f k8s/namespace.yaml
 
@@ -111,7 +111,7 @@ Write-Host "Namespace ready." -ForegroundColor Green
 # 3. Kubernetes Secrets
 # ------------------------------------------------------------
 
-Write-Host "`n[2/7] Creating/updating Kubernetes secrets..." -ForegroundColor Yellow
+Write-Host "`n[2/9] Creating/updating Kubernetes secrets..." -ForegroundColor Yellow
 
 kubectl create secret generic backend-secret `
     --namespace=devops-case `
@@ -139,7 +139,7 @@ Write-Host "Secrets configured." -ForegroundColor Green
 # 4. Build application images
 # ------------------------------------------------------------
 
-Write-Host "`n[3/7] Building Docker images..." -ForegroundColor Yellow
+Write-Host "`n[3/9] Building Docker images..." -ForegroundColor Yellow
 
 docker build `
     -t devops-case-backend:k8s `
@@ -167,7 +167,7 @@ Write-Host "Docker images built successfully." -ForegroundColor Green
 # 5. Import images into Kind Kubernetes node
 # ------------------------------------------------------------
 
-Write-Host "`n[4/7] Importing images into Kubernetes..." -ForegroundColor Yellow
+Write-Host "`n[4/9] Importing images into Kubernetes..." -ForegroundColor Yellow
 
 $tempDir = Join-Path $PWD ".k8s-image-cache"
 
@@ -240,7 +240,7 @@ Write-Host "Images imported successfully." -ForegroundColor Green
 # 6. Application workloads
 # ------------------------------------------------------------
 
-Write-Host "`n[5/7] Deploying application workloads..." -ForegroundColor Yellow
+Write-Host "`n[5/9] Deploying application workloads..." -ForegroundColor Yellow
 
 kubectl apply -f k8s/backend-service.yaml
 Assert-LastExitCode "Failed to apply backend-service.yaml."
@@ -281,10 +281,108 @@ Write-Host "Application workloads ready." -ForegroundColor Green
 
 
 # ------------------------------------------------------------
-# 7. Envoy Gateway
+# 7. Security Verification
 # ------------------------------------------------------------
 
-Write-Host "`n[6/7] Installing/updating Envoy Gateway..." -ForegroundColor Yellow
+Write-Host "`n[6/9] Security Verification: Verifying non-root containers..." -ForegroundColor Yellow
+
+$backendUser = kubectl exec deployment/backend -n devops-case -- whoami
+
+if ($backendUser -ne "node") {
+    throw "Backend is not running as node."
+}
+
+$frontendUser = kubectl exec deployment/frontend -n devops-case -- whoami
+
+if ($frontendUser -ne "nginx") {
+    throw "Frontend is not running as nginx."
+}
+
+$backendSecurity = kubectl get deployment backend `
+    -n devops-case `
+    -o jsonpath="{.spec.template.spec.containers[0].securityContext.runAsNonRoot}"
+
+if ($backendSecurity -ne "true") {
+    throw "Backend runAsNonRoot is not enabled."
+}
+
+$frontendSecurity = kubectl get deployment frontend `
+    -n devops-case `
+    -o jsonpath="{.spec.template.spec.containers[0].securityContext.runAsNonRoot}"
+
+if ($frontendSecurity -ne "true") {
+    throw "Frontend runAsNonRoot is not enabled."
+}
+
+$etlSecurity = kubectl get cronjob etl `
+    -n devops-case `
+    -o jsonpath="{.spec.jobTemplate.spec.template.spec.containers[0].securityContext.runAsNonRoot}"
+
+if ($etlSecurity -ne "true") {
+    throw "ETL runAsNonRoot is not enabled."
+}
+
+$backendPrivilege = kubectl get deployment backend `
+    -n devops-case `
+    -o jsonpath="{.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation}"
+
+if ($backendPrivilege -ne "false") {
+    throw "Backend allowPrivilegeEscalation is not disabled."
+}
+
+$frontendPrivilege = kubectl get deployment frontend `
+    -n devops-case `
+    -o jsonpath="{.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation}"
+
+if ($frontendPrivilege -ne "false") {
+    throw "Frontend allowPrivilegeEscalation is not disabled."
+}
+
+$etlPrivilege = kubectl get cronjob etl `
+    -n devops-case `
+    -o jsonpath="{.spec.jobTemplate.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation}"
+
+if ($etlPrivilege -ne "false") {
+    throw "ETL allowPrivilegeEscalation is not disabled."
+}
+
+$backendCapabilities = kubectl get deployment backend `
+    -n devops-case `
+    -o jsonpath="{.spec.template.spec.containers[0].securityContext.capabilities.drop[0]}"
+
+if ($backendCapabilities -ne "ALL") {
+    throw "Backend capabilities are not fully dropped."
+}
+
+$frontendCapabilities = kubectl get deployment frontend `
+    -n devops-case `
+    -o jsonpath="{.spec.template.spec.containers[0].securityContext.capabilities.drop[0]}"
+
+if ($frontendCapabilities -ne "ALL") {
+    throw "Frontend capabilities are not fully dropped."
+}
+
+$etlCapabilities = kubectl get cronjob etl `
+    -n devops-case `
+    -o jsonpath="{.spec.jobTemplate.spec.template.spec.containers[0].securityContext.capabilities.drop[0]}"
+
+if ($etlCapabilities -ne "ALL") {
+    throw "ETL capabilities are not fully dropped."
+}
+
+Write-Host "Backend: non-root (node, UID 1000)" -ForegroundColor Green
+Write-Host "Frontend: non-root (nginx, UID 101)" -ForegroundColor Green
+Write-Host "ETL: non-root (appuser, UID 10001)" -ForegroundColor Green
+Write-Host "Privilege escalation: disabled" -ForegroundColor Green
+Write-Host "Linux capabilities: ALL dropped" -ForegroundColor Green
+Write-Host "Security verification passed." -ForegroundColor Green
+
+
+# ------------------------------------------------------------
+# 8. Gateway / routing configuration
+# ------------------------------------------------------------
+
+Write-Host "`n[7/9] Installing/updating Envoy Gateway..." -ForegroundColor Yellow
 
 helm upgrade --install eg `
     oci://docker.io/envoyproxy/gateway-helm `
@@ -306,10 +404,10 @@ Write-Host "Envoy Gateway controller ready." -ForegroundColor Green
 
 
 # ------------------------------------------------------------
-# 8. Gateway resources
+# 9. Final verification
 # ------------------------------------------------------------
 
-Write-Host "`n[7/7] Configuring Gateway and HTTP routing..." -ForegroundColor Yellow
+Write-Host "`n[8/9] Configuring Gateway and HTTP routing..." -ForegroundColor Yellow
 
 kubectl apply -f k8s/gatewayclass.yaml
 Assert-LastExitCode "Failed to apply gatewayclass.yaml."
@@ -324,10 +422,10 @@ Write-Host "Gateway resources applied." -ForegroundColor Green
 
 
 # ------------------------------------------------------------
-# 9. Wait for Gateway to become programmed
+# 10. Final status
 # ------------------------------------------------------------
 
-Write-Host "`nWaiting for Gateway to become PROGRAMMED=True..." -ForegroundColor Yellow
+Write-Host "`n[9/9] Verifying Gateway, HTTPRoute and endpoints..." -ForegroundColor Yellow
 
 $gatewayReady = $false
 
@@ -353,7 +451,7 @@ Write-Host "Gateway: PROGRAMMED=True" -ForegroundColor Green
 
 
 # ------------------------------------------------------------
-# 10. Wait for HTTPRoute
+# 11. HTTPRoute status verification
 # ------------------------------------------------------------
 
 Write-Host "Waiting for HTTPRoute to be accepted..." -ForegroundColor Yellow
@@ -386,7 +484,7 @@ Write-Host "HTTPRoute: Accepted=True, ResolvedRefs=True" -ForegroundColor Green
 
 
 # ------------------------------------------------------------
-# 11. Final status
+# 12. Complete
 # ------------------------------------------------------------
 
 Write-Host "`n=== Deployment Status ===" -ForegroundColor Cyan
@@ -407,7 +505,7 @@ kubectl get httproute -n devops-case
 
 
 # ------------------------------------------------------------
-# 12. Endpoint verification
+# 13. Endpoint verification
 # ------------------------------------------------------------
 
 Write-Host "`n[Verification] Testing Kubernetes endpoints..." -ForegroundColor Yellow
@@ -442,7 +540,7 @@ Write-Host "Backend healthcheck: OK" -ForegroundColor Green
 
 
 # ------------------------------------------------------------
-# 13. Complete
+# 14. Complete
 # ------------------------------------------------------------
 
 Write-Host "`n=== Setup Complete ===" -ForegroundColor Green

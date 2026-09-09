@@ -23,6 +23,14 @@ spec:
           image: devops-case-backend:k8s
           imagePullPolicy: Never
 
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+
           ports:
             - containerPort: 5050
 
