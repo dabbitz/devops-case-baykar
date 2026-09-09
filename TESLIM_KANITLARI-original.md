@@ -8,26 +8,26 @@ Ekran görüntülerinde gerçek credential, token, parola, private key veya hass
 
 ### 1.1 Ana sayfa
 
-- **Görsel:** `docs/screenshots/01-web-home.png`
-- **Açıklama:** React frontend uygulamasının erişilebilir ve çalışır durumda olduğu gösterilmektedir. Ana sayfa üzerinden uygulamanın temel kullanıcı akışlarına erişilebilmektedir.
+- **Görsel:** `docs/screenshots/...`
+- **Açıklama:**
 
 ### 1.2 Create işlemi
 
-- **Form görseli:** `docs/screenshots/02-record-create-form.png`
-- **Başarılı sonuç görseli:** `docs/screenshots/03-record-created.png`
-- **Açıklama:** Yeni bir kayıt oluşturma formu doldurulmuş ve create işlemi başarıyla gerçekleştirilmiştir. Oluşturulan kayıt `/records` ekranında doğrulanmıştır.
+- **Form görseli:** `docs/screenshots/...`
+- **Başarılı sonuç görseli:** `docs/screenshots/...`
+- **Açıklama:**
 
 ### 1.3 Edit işlemi
 
-- **İşlem öncesi görsel:** `docs/screenshots/04-record-edit-before.png`
-- **İşlem sonrası görsel:** `docs/screenshots/05-record-edit-after.png`
-- **Açıklama:** Mevcut kayıt edit formu üzerinden güncellenmiştir. Güncelleme sonrasında yeni değerlerin `/records` ekranında görüntülendiği doğrulanmıştır.
+- **İşlem öncesi görsel:** `docs/screenshots/...`
+- **İşlem sonrası görsel:** `docs/screenshots/...`
+- **Açıklama:**
 
 ## 2. Docker
 
 - **Image build görseli:** `docs/screenshots/...`
 - **Çalışan container görseli:** `docs/screenshots/...`
-- **Açıklama:** Frontend, backend ve Python ETL için Docker image'larının başarıyla oluşturulduğu ve container ortamında çalıştırılabildiği gösterilmektedir.
+- **Açıklama:**
 
 ## 3. Kubernetes
 

@@ -26,3 +26,6 @@ Thumbs.db
 
 mern-project/client/cypress/videos/
 mern-project/client/cypress/screenshots/
+
+# Backups
+backups/
