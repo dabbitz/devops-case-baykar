@@ -1,5 +1,6 @@
 services:
   frontend:
+    image: devops-case-frontend:compose
     build:
       context: ./mern-project/client
       args:
@@ -11,6 +12,7 @@ services:
       - backend
 
   backend:
+    image: devops-case-backend:compose
     build:
       context: ./mern-project/server
     container_name: devops-backend
@@ -21,6 +23,7 @@ services:
       ALLOWED_ORIGIN: http://localhost:3000
 
   etl:
+    image: devops-case-etl:compose
     build:
       context: ./python-project
     container_name: devops-etl

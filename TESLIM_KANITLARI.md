@@ -25,8 +25,9 @@ Ekran görüntülerinde gerçek credential, token, parola, private key veya hass
 
 ## 2. Docker
 
-- **Image build görseli:** `docs/screenshots/...`
-- **Çalışan container görseli:** `docs/screenshots/...`
+- **Kubernetes image build görseli:** `docs/screenshots/06-docker-images-kubernetes-build.png`
+- **Compose image build görseli:** `docs/screenshots/07-docker-images-compose-build.png`
+- **Çalışan container görseli:** `docs/screenshots/08-docker-images-compose-and-kubernetes.png`
 - **Açıklama:** Frontend, backend ve Python ETL için Docker image'larının başarıyla oluşturulduğu ve container ortamında çalıştırılabildiği gösterilmektedir.
 
 ## 3. Kubernetes

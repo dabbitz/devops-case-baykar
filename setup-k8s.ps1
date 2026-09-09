@@ -142,7 +142,7 @@ Write-Host "Secrets configured." -ForegroundColor Green
 Write-Host "`n[3/7] Building Docker images..." -ForegroundColor Yellow
 
 docker build `
-    -t devops_case_final-backend:latest `
+    -t devops-case-backend:k8s `
     ./mern-project/server
 
 Assert-LastExitCode "Failed to build backend Docker image."
@@ -219,7 +219,7 @@ function Import-ImageToKindNode {
 
 
 Import-ImageToKindNode `
-    "devops_case_final-backend:latest" `
+    "devops-case-backend:k8s" `
     "backend-k8s.tar"
 
 Import-ImageToKindNode `
