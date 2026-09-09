@@ -51,7 +51,7 @@ Ardından tüm `sample_training` database'i aşağıdaki komut ile yedeklenmişt
 Backup sonucunda aşağıdaki collection'lar yedeklenmiştir:
 
 ```text
-sample_training.records              → 2 documents
+sample_training.records              → 1 documents
 sample_training.github_repositories  → 1 document
 ```
 
@@ -82,9 +82,9 @@ Restore işlemi sonucunda:
 
 ```text
 finished restoring `sample_training.github_repositories` (1 document, 0 failures)
-finished restoring `sample_training.records` (2 documents, 0 failures)
+finished restoring `sample_training.records` (1 documents, 0 failures)
 
-3 document(s) restored successfully. 0 document(s) failed to restore.
+2 document(s) restored successfully. 0 document(s) failed to restore.
 ```
 
 `github_repositories` collection'ına ait unique `github_id` index'i de backup metadata üzerinden yeniden oluşturulmuştur.
@@ -105,16 +105,16 @@ Senaryo 9 Eylül 2026 tarihinde gerçekleştirilmiştir.
 
 | # | Adım / Step                                      | Sonuç / Result                                                                | Kanıt / Evidence                              |
 | - | ------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------- |
-| 1 | Kayıt oluşturuldu / Record created               | Başarılı. MERN uygulamasında kayıt mevcut durumda doğrulandı.                 | `docs/screenshots/backup-01-before.png`       |
-| 2 | Yedek alındı / Backup taken                      | Başarılı. `sample_training` database'inin tamamı `mongodump` ile yedeklendi.  | `docs/screenshots/backup-02-dump.png`         |
-| 3 | Collection/DB silindi / Collection or DB dropped | Başarılı. `sample_training` database'i Atlas üzerinden silindi.               | `docs/screenshots/backup-03-dropped.png`      |
-| 4 | Verinin kaybolduğu görüldü / Data confirmed gone | Başarılı. Database ve uygulama kayıtlarının kaybolduğu doğrulandı.            | `docs/screenshots/backup-04-data-missing.png` |
-| 5 | Yedekten geri yüklendi / Restored from backup    | Başarılı. 3 document, 0 failure ile restore tamamlandı.                       | `docs/screenshots/backup-05-restore.png`      |
-| 6 | Veri geri geldi / Data confirmed back            | Başarılı. MongoDB Atlas ve web arayüzünde kayıtların geri geldiği doğrulandı. | `docs/screenshots/backup-06-restored.png`     |
+| 1 | Kayıt oluşturuldu / Record created               | Başarılı. Atlas database'de kayıt mevcut durumda doğrulandı.                 | `docs/screenshots/16-backup-record-created-01.png`       |
+| 2 | Yedek alındı / Backup taken                      | Başarılı. `sample_training` database'inin tamamı `mongodump` ile yedeklendi.  | `docs/screenshots/18-backup-taken.png`         |
+| 3 | Collection/DB silindi / Collection or DB dropped | Başarılı. `sample_training` database'i Atlas üzerinden silindi.               | `docs/screenshots/19-collection-dropped.png`      |
+| 4 | Verinin kaybolduğu görüldü / Data confirmed gone | Başarılı. Database ve uygulama kayıtlarının kaybolduğu doğrulandı.            | `docs/screenshots/21-data-missing-after-drop-database.png` |
+| 5 | Yedekten geri yüklendi / Restored from backup    | Başarılı. 2 document, 0 failure ile restore tamamlandı.                       | `docs/screenshots/22-restore-executed.png`      |
+| 6 | Veri geri geldi / Data confirmed back            | Başarılı. MongoDB Atlas ve web arayüzünde kayıtların geri geldiği doğrulandı. | `docs/screenshots/24-data-restored-verified-database.png`, `docs/screenshots/23-data-restored-verified-ui.png`     |
 
 ## 7. Bilinen sınırlamalar / Known limitations
 
-Bu case kapsamında backup işlemi manuel olarak gerçekleştirilmiş ve backup dosyaları local filesystem üzerinde tutulmuştur. Bu yaklaşım gerçek production ortamında tek başına yeterli değildir.
+Bu case kapsamında backup işlemi manuel olarak gerçekleştirilmiş ve backup dosyaları local filesystem üzerinde tutulmuştur.
 
 Production ortamında:
 

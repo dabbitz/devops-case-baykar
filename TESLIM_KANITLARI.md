@@ -118,6 +118,14 @@ Uyguladığınız logging, monitoring, alarm, Helm, Terraform, güvenlik taramas
 - **Görsel:** `docs/screenshots/25-ETL-cronjob-logging.png`
 - **Açıklama:** Kubernetes üzerinde çalışan ETL CronJob'un logları GitHub repository'sinin alınmasını, MongoDB bağlantısını, mevcut repository'nin github_id üzerinden güncellenmesini, document count kontrolünü ve ETL işleminin başarıyla tamamlanmasını göstermektedir.
 
+### 7.1 Critical Alerts
+
+- **Alert kontrolü ve test görseli:** `docs/screenshots/26-alerts-check.png`
+
+- **Alert tanımı:** `scripts/check-alerts.ps1`
+
+- **Açıklama:** `check-alerts.ps1` script'i iki kritik olay için çalıştırılabilir alarm kontrolü sağlamaktadır. `ALERT-001` ETL CronJob'un başarısız olması veya beklenen zaman aralığında başarılı bir çalışmanın bulunmaması durumunu, `ALERT-002` ise frontend veya backend health endpoint'lerinin erişilememesi durumunu kontrol etmektedir. Test modunda her iki alarm da bilinçli olarak tetiklenmiş ve script `exit code 1` ile sonlandırılmıştır. Sistem sağlıklı durumdayken gerçekleştirilen normal kontrolde ise kritik alarm üretilmemiş ve script başarılı şekilde sonlanmıştır.
+
 ## 8. Ek Kanıtlar
 
 - **Görsel:** `docs/screenshots/...`
