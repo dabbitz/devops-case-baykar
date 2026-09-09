@@ -7,7 +7,7 @@ services:
         REACT_APP_API_URL: http://localhost:5050
     container_name: devops-frontend
     ports:
-      - "3000:80"
+      - "3000:8000"
     depends_on:
       - backend
 
@@ -21,6 +21,10 @@ services:
     environment:
       ATLAS_URI: ${ATLAS_URI}
       ALLOWED_ORIGIN: http://localhost:3000
+    networks:
+      default:
+        aliases:
+          - backend-service
 
   etl:
     image: devops-case-etl:compose

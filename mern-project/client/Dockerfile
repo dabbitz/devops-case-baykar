@@ -21,6 +21,21 @@ FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build /usr/share/nginx/html
 
-EXPOSE 80
+RUN mkdir -p /var/cache/nginx \
+    /var/run/nginx \
+    /var/log/nginx \
+    /tmp/nginx \
+    && chown -R nginx:nginx \
+        /var/cache/nginx \
+        /var/run/nginx \
+        /var/log/nginx \
+        /tmp/nginx \
+        /usr/share/nginx/html \
+    && chown nginx:nginx /etc/nginx/conf.d/default.conf \
+    && sed -i 's#pid[[:space:]]\+/run/nginx.pid;#pid /tmp/nginx.pid;#' /etc/nginx/nginx.conf
+
+USER nginx
+
+EXPOSE 8000
 
 CMD ["nginx", "-g", "daemon off;"]
