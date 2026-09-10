@@ -87,23 +87,52 @@ try:
         "pushed_at": repo["pushed_at"]
     }
 
+    # Check existing document before upsert
+    existing_document = collection.find_one(
+        {"github_id": repo["id"]},
+        {"_id": 0}
+    )
+
     # Upsert (Insert if not exists, update if it does)
     result = collection.update_one(
-        {"github_id": repo['id']},
+        {"github_id": repo["id"]},
         {"$set": document},
         upsert=True
     )
 
     # Logging
     if result.upserted_id is not None:
-        print(f"[INFO] INSERT: repository added " 
-            f"(github_id={repo['id']})")
+        print(
+            f"[INFO] INSERT: repository added "
+            f"(github_id={repo['id']})"
+        )
     else:
-        print(f"[INFO] UPDATE: repository updated " 
-            f"(github_id={repo['id']})")
+        updated_fields = []
 
-    print(f"[INFO] MongoDB document count: " 
-        f"{collection.count_documents({})}")
+        if existing_document:
+            for field, new_value in document.items():
+                old_value = existing_document.get(field)
+
+                if old_value != new_value:
+                    updated_fields.append(field)
+
+        print(
+            f"[INFO] UPDATE: repository updated "
+            f"(github_id={repo['id']})"
+        )
+
+        if updated_fields:
+            print(
+                f"[INFO] Updated fields: "
+                f"{', '.join(updated_fields)}"
+            )
+        else:
+            print("[INFO] Updated fields: none")
+
+    print(
+        f"[INFO] MongoDB document count: "
+        f"{collection.count_documents({})}"
+    )
 
     print("[INFO] ETL completed successfully.")
 except PyMongoError as exc:
