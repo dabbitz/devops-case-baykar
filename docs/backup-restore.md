@@ -51,7 +51,7 @@ Ardından tüm `sample_training` database'i aşağıdaki komut ile yedeklenmişt
 Backup sonucunda aşağıdaki collection'lar yedeklenmiştir:
 
 ```text
-sample_training.records              → 1 documents
+sample_training.records              → 1 document
 sample_training.github_repositories  → 1 document
 ```
 
@@ -82,7 +82,7 @@ Restore işlemi sonucunda:
 
 ```text
 finished restoring `sample_training.github_repositories` (1 document, 0 failures)
-finished restoring `sample_training.records` (1 documents, 0 failures)
+finished restoring `sample_training.records` (1 document, 0 failures)
 
 2 document(s) restored successfully. 0 document(s) failed to restore.
 ```

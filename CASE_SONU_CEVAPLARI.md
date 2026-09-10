@@ -533,7 +533,7 @@ Backup senaryosunda `sample_training` database'inin tamamı yedeklenmiştir.
 Gerçek testte:
 
 ```text
-sample_training.records               → 1 documents
+sample_training.records               → 1 document
 sample_training.github_repositories   → 1 document
 Toplam                                → 2 documents
 ```

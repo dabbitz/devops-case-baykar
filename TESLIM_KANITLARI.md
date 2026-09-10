@@ -76,14 +76,17 @@ Aşağıdaki altı adımın tamamı kanıtlanmalıdır. Adımların aynı kayıt
 - **Görsel veya terminal çıktısı:** `docs/screenshots/19-backup-taken.png`
 - **Kullanılan yöntem ve komutlar (3 komut, sırasıyla, proje kökünden):** MongoDB Database Tools mongodump kullanılmıştır:
 
-- - New-Item -ItemType Directory -Path ".\backups" -Force
+```powershell
+New-Item -ItemType Directory -Path ".\backups" -Force
 
-- - $atlasUri = (Get-Content .\.env | Where-Object { $_ -match '^ATLAS_URI=' }) -replace '^ATLAS_URI=', ''
+$atlasUri = (Get-Content .\.env | Where-Object { $_ -match '^ATLAS_URI=' }) -replace '^ATLAS_URI=', ''
 
-- - "C:\Program Files\MongoDB\Tools\100\bin\mongodump.exe" "
-    --uri="$atlasUri" '
-    --db=sample_training '
-    --out=".\backups\sample-training-backup"
+"C:\Program Files\MongoDB\Tools\100\bin\mongodump.exe" `
+  --uri="$atlasUri" `
+  --db=sample_training `
+  --out=".\backups\sample-training-backup"
+```
+
 - **Yedeğin saklandığı konum:** `backups/sample-training-backup`
 - **Açıklama:** Tüm `sample_training` database'i yedeklenmiştir. Backup çıktısında `sample_training.records` ve `sample_training.github_repositories` için birer document yedeklendiği görülmektedir.
 
@@ -124,17 +127,12 @@ Uyguladığınız logging, monitoring, alarm, Helm, Terraform, güvenlik taramas
 ### 8.1 Critical Alerts
 
 - **Alert kontrolü ve test görseli:** `docs/screenshots/27-alerts-check.png`
-
 - **Alert tanımı:** `scripts/check-alerts.ps1`
-
 - **Açıklama:** `check-alerts.ps1` script'i iki kritik olay için çalıştırılabilir alarm kontrolü sağlamaktadır. `ALERT-001` ETL CronJob'un başarısız olması veya beklenen zaman aralığında başarılı bir çalışmanın bulunmaması durumunu, `ALERT-002` ise frontend veya backend health endpoint'lerinin erişilememesi durumunu kontrol etmektedir. Test modunda her iki alarm da bilinçli olarak tetiklenmiş ve script `exit code 1` ile sonlandırılmıştır. Sistem sağlıklı durumdayken gerçekleştirilen normal kontrolde ise kritik alarm üretilmemiş ve script başarılı şekilde sonlanmıştır.
 
 ### 8.2 Kubernetes Security Hardening
 
 - **Backend non-root kanıtı:** `docs/screenshots/28-backend-non-root-kubernetes.png`
-
 - **Frontend non-root kanıtı:** `docs/screenshots/29-frontend-non-root-kubernetes.png`
-
 - **ETL non-root kanıtı:** `docs/screenshots/30-etl-non-root-kubernetes.png`
-
 - **Açıklama:** Kubernetes workload'larında container'ların root kullanıcıyla çalışmadığı doğrulanmıştır. Backend `node` (UID 1000), frontend `nginx` (UID 101) ve ETL `appuser` (UID 10001) olarak çalışmaktadır. Ayrıca `allowPrivilegeEscalation` devre dışı bırakılmış ve tüm Linux capabilities drop edilmiştir.

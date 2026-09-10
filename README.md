@@ -16,8 +16,7 @@ DevOps_Case_Final/
 │   ├── screenshots/                  # Çalışma kanıtları
 │   ├── architecture.md               # Sistem mimarisi ve istek akışı
 │   ├── backup-restore.md             # Backup/restore runbook'u
-│   ├── backup-restore-original.md    # Başlangıç runbook şablonu
-│   └── findings.md                   # Başlangıç analizi ve production-readiness bulguları
+│   └── findings.md                   # Uygulama ilk açıldığında bulunan hatalar
 │
 ├── k8s/
 │   ├── namespace.yaml                # Kubernetes namespace
@@ -38,9 +37,8 @@ DevOps_Case_Final/
 ├── python-project/
 │   ├── Dockerfile                    # ETL container image
 │   ├── ETL.py                        # Güncel ETL implementation
-│   ├── ETL_original.py               # Başlangıç ETL dosyası
 │   ├── requirements.txt              # Python bağımlılıkları
-│   └── README.md                     # ETL'e özel açıklamalar
+│   └── README.md                     # ETL başlangıç açıklamaları
 │
 ├── scripts/
 │   └── check-alerts.ps1              # Kritik alarm kontrolleri
@@ -49,21 +47,14 @@ DevOps_Case_Final/
 ├── .gitignore
 ├── docker-compose.yml                # Local Docker Compose ortamı
 ├── setup-k8s.ps1                     # Kubernetes kurulum/doğrulama script'i
-│
 ├── CASE_SONU_CEVAPLARI.md            # Case sonu cevapları
 ├── CASE_END_ANSWERS.md               # İngilizce case cevapları
 ├── TESLIM_KANITLARI.md               # Çalışma kanıtları
 ├── SUBMISSION_EVIDENCE.md            # İngilizce teslim kanıtları
-│
 ├── DevOps_Teknik_Case_TR.docx        # Türkçe case dokümanı
 ├── DevOps_Technical_Case_EN.docx     # İngilizce case dokümanı
-│
 ├── README.md                         # Proje ve çalıştırma dokümantasyonu
-├── README_EN.md                      # İngilizce README
-│
-├── README-ORIGINAL.md                # Başlangıç README'si
-├── CASE_SONU_CEVAPLARI_ORIGINAL.md   # Başlangıç cevap şablonu
-└── TESLIM_KANITLARI-original.md      # Başlangıç kanıt şablonu
+└── README_EN.md                      # İngilizce README
 ```
 
 ## Sistem Mimarisi
@@ -124,21 +115,166 @@ Kubernetes çalıştırılacaksa Docker Desktop Kubernetes veya uygun bir Kubern
 
 Secret veya bağlantı bilgileri source code içerisinde hardcode edilmemiştir.
 
-Yerel kullanımda gerekli environment değerleri `.env` üzerinden sağlanır.
+Repository klonlandıktan sonra çalıştırma ortamına ait bazı değerlerin kullanıcı tarafından hazırlanması gerekir. Bu değerler özellikle MongoDB Atlas ve GitHub API erişimi için gereklidir.
 
-Örnek olarak:
+### 1. MongoDB Atlas hazırlığı
+
+Normal Kubernetes deployment'ında MongoDB, Kubernetes cluster'ı içerisinde çalıştırılmamakta; MongoDB Atlas kullanılmaktadır.
+
+Kendi MongoDB Atlas hesabınızda:
+
+1. Bir MongoDB deployment oluşturun.
+2. `sample_training` adında bir database kullanın.
+3. Backend'in kullanacağı `records` collection'ının oluşturulmasına izin verin.
+4. ETL'nin kullanacağı `github_repositories` collection'ını oluşturun veya ilk ETL çalışmasında oluşturulmasına izin verin.
+5. Kullanacağınız IP adresinin MongoDB Atlas Network Access bölümünde erişime izinli olduğundan emin olun.
+6. Uygun bir database user oluşturun ve gerekli erişim yetkilerini verin.
+7. Connection URI bilgisini alın.
+
+> Uygulamanın production ortamında MongoDB Atlas kullanması nedeniyle database adı ve collection isimleri aşağıdaki environment değişkenleri ile proje kodundaki kullanım ile uyumlu olmalıdır.
+
+### 2. GitHub API hazırlığı
+
+Python ETL, GitHub API üzerinden repository bilgisi almaktadır.
+
+Kendi GitHub repository'nizi kullanacaksanız aşağıdaki değerleri buna göre değiştirin:
 
 ```text
-ATLAS_URI=...
-GITHUB_OWNER=...
-GITHUB_REPO=...
-GITHUB_TOKEN=...
-MONGODB_DB=...
-MONGODB_URI=...
-MONGODB_COLLECTION=...
+GITHUB_OWNER=<GitHub kullanıcı veya organizasyon adı>
+GITHUB_REPO=<repository adı>
+GITHUB_TOKEN=<GitHub Personal Access Token>
 ```
 
-Gerçek credential veya token değerleri repository'ye eklenmemelidir.
+Kullanılan token yalnızca gerekli GitHub API erişimlerini içermelidir.
+
+### 3. `.env` dosyasını oluşturma
+
+Proje kökünde `.env` adlı bir dosya oluşturun.
+
+Örnek yapı:
+
+```text
+ATLAS_URI=<MongoDB Atlas connection string>
+
+GITHUB_OWNER=<GitHub owner>
+GITHUB_REPO=<GitHub repository>
+GITHUB_TOKEN=<GitHub token>
+
+MONGODB_DB=sample_training
+MONGODB_URI=<MongoDB connection string>
+MONGODB_COLLECTION=github_repositories
+```
+
+`ATLAS_URI` backend tarafından, `MONGODB_URI`, `MONGODB_DB` ve `MONGODB_COLLECTION` ise Python ETL tarafından kullanılmaktadır.
+
+Gerçek credential, token veya connection string değerlerini source code'a yazmayın ve Git repository'sine commit etmeyin.
+
+### 4. İsim uyuşmazlıklarına dikkat
+
+Kurulum sırasında aşağıdaki isimlerin kod ve konfigürasyon ile uyumlu olması gerekir:
+
+| Alan                 | Kullanım                   |
+| -------------------- | -------------------------- |
+| `MONGODB_DB`         | `sample_training`          |
+| `MONGODB_COLLECTION` | `github_repositories`      |
+| `GITHUB_OWNER`       | GitHub repository sahibi   |
+| `GITHUB_REPO`        | GitHub repository adı      |
+| `ATLAS_URI`          | Backend MongoDB bağlantısı |
+| `MONGODB_URI`        | ETL MongoDB bağlantısı     |
+
+`GITHUB_OWNER` ve `GITHUB_REPO` değiştirilebilir. Ancak farklı bir repository kullanıldığında ETL'nin erişim yetkisine sahip bir GitHub token verilmelidir.
+
+### 5. Kubernetes Secret'ları
+
+`setup-k8s.ps1` script'i `.env` içerisindeki hassas değerleri okuyarak gerekli Kubernetes Secret kaynaklarını oluşturur.
+
+Bu nedenle Kubernetes deployment'ından önce `.env` dosyasının hazırlanmış olması gerekir.
+
+Script secret değerlerini ekrana yazdırmadan kullanacak şekilde tasarlanmıştır.
+
+---
+
+## İlk Kurulum
+
+Repository klonlandıktan sonra önerilen sıra şöyledir:
+
+```text
+Repository'yi klonla
+        ↓
+Gerekli araçları kur
+        ↓
+MongoDB Atlas'ı hazırla
+        ↓
+GitHub API token oluştur
+        ↓
+.env dosyasını oluştur
+        ↓
+Docker Desktop Kubernetes'i etkinleştir
+        ↓
+setup-k8s.ps1 çalıştır
+        ↓
+Kubernetes workload'larını doğrula
+        ↓
+Frontend / backend endpoint'lerini test et
+        ↓
+ETL Job / CronJob loglarını kontrol et
+```
+
+Kubernetes kurulumu için:
+
+```powershell
+.\setup-k8s.ps1
+```
+
+Kurulum tamamlandıktan sonra:
+
+```powershell
+kubectl get pods -n devops-case
+kubectl get services -n devops-case
+kubectl get cronjobs -n devops-case
+```
+
+ile workload durumu kontrol edilebilir.
+
+Frontend:
+
+```text
+http://localhost/
+```
+
+Backend healthcheck:
+
+```text
+http://localhost/api/healthcheck/
+```
+
+### Alternatif: Docker Compose
+
+Kubernetes kullanmadan önce local container ortamını doğrulamak için:
+
+```powershell
+docker compose build
+docker compose up -d
+```
+
+Ardından:
+
+```text
+Frontend:
+http://localhost:3000
+
+Backend:
+http://localhost:5050/healthcheck/
+```
+
+ile kontrol edilebilir.
+
+Compose ortamını kapatmak için:
+
+```powershell
+docker compose down
+```
+
 
 ## MERN Uygulamasını Çalıştırma
 
