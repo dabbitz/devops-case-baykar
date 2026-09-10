@@ -1,0 +1,17 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: devops-case-eks
+  region: eu-central-1
+  version: "1.36"
+
+autoModeConfig:
+  enabled: false
+
+managedNodeGroups:
+  - name: devops-workers
+    instanceType: t3.small
+    desiredCapacity: 1
+    minSize: 1
+    maxSize: 1
