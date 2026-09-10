@@ -133,12 +133,30 @@ jobs:
           kubectl get pods -n devops-case
           kubectl get services -n devops-case
           kubectl get cronjob -n devops-case
-
+      - name: Debug backend service
+        run: |
+          kubectl get pods -n devops-case -o wide
+          kubectl get svc backend-service -n devops-case
+          kubectl get endpoints backend-service -n devops-case
+          kubectl logs deployment/backend -n devops-case
       - name: Verify backend health
         run: |
           kubectl port-forward service/backend-service 5050:5050 -n devops-case > /tmp/port-forward.log 2>&1 &
-          sleep 5
-          curl --fail http://127.0.0.1:5050/healthcheck/
+          PF_PID=$!
+
+          for i in {1..15}; do
+            if curl --silent --show-error --fail http://127.0.0.1:5050/healthcheck/; then
+              kill $PF_PID || true
+              exit 0
+            fi
+            sleep 2
+          done
+
+          echo "Port-forward logs:"
+          cat /tmp/port-forward.log
+
+          kill $PF_PID || true
+          exit 1
 
       - name: Verify frontend
         run: |
