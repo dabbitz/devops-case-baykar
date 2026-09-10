@@ -83,6 +83,8 @@ jobs:
 
       - name: Create Kubernetes cluster
         uses: helm/kind-action@v1.14.0
+        with:
+          cluster_name: kind
 
       - name: Build backend image
         run: docker build -t devops-case-backend:k8s ./mern-project/server
