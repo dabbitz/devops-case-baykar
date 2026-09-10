@@ -1,6 +1,6 @@
 # 2NTECH DevOps Teknik Case
 
-Bu repository, 2NTECH DevOps Teknik Case kapsamında geliştirilen MERN uygulaması, Python ETL iş yükü, Docker container'ları, Kubernetes deployment'ı, CI/CD pipeline'ı ve backup/restore çalışmalarını içermektedir.
+Bu repository, 2NTECH DevOps Teknik Case kapsamında geliştirilen MERN uygulaması, Python ETL iş yükü, Docker container'ları, Kubernetes deployment'ları, AWS EKS ortamı, Amazon ECR, CI/CD pipeline'ı ve backup/restore çalışmalarını içermektedir.
 
 ## Proje Yapısı
 
@@ -10,8 +10,6 @@ DevOps_Case_Final/
 │   └── workflows/
 │       └── ci.yml                    # GitHub Actions CI/CD pipeline
 │
-├── backups/                          # Yerel backup çıktıları
-│
 ├── docs/
 │   ├── screenshots/                  # Çalışma kanıtları
 │   ├── architecture.md               # Sistem mimarisi ve istek akışı
@@ -19,16 +17,26 @@ DevOps_Case_Final/
 │   └── findings.md                   # Uygulama ilk açıldığında bulunan hatalar
 │
 ├── k8s/
-│   ├── namespace.yaml                # Kubernetes namespace
-│   ├── backend-deployment.yaml       # Backend Deployment
-│   ├── backend-service.yaml          # Backend ClusterIP Service
-│   ├── frontend-deployment.yaml      # Frontend Deployment
-│   ├── frontend-service.yaml         # Frontend ClusterIP Service
-│   ├── etl-cronjob.yaml              # Saatlik Python ETL CronJob
+│   ├── backend-deployment.yaml       # Local Kubernetes backend Deployment
+│   ├── backend-service.yaml          # Local Kubernetes backend ClusterIP Service
 │   ├── ci-mongodb.yaml               # CI/CD için geçici MongoDB
-│   ├── gatewayclass.yaml             # Envoy GatewayClass
+│   ├── etl-cronjob.yaml              # Local Kubernetes saatlik Python ETL CronJob
+│   ├── frontend-deployment.yaml      # Local Kubernetes frontend Deployment
+│   ├── frontend-service.yaml         # Local Kubernetes frontend ClusterIP Service
 │   ├── gateway.yaml                  # Envoy Gateway
-│   └── http-route.yaml               # HTTPRoute
+│   ├── gatewayclass.yaml             # Envoy GatewayClass
+│   ├── http-route.yaml               # HTTPRoute
+│   ├── namespace.yaml                # Local Kubernetes namespace
+│   └── eks/
+│       ├── backend-deployment.yaml   # EKS backend Deployment
+│       ├── backend-service.yaml      # EKS backend ClusterIP Service
+│       ├── cd-rbac.yaml              # GitHub Actions Kubernetes RBAC
+│       ├── etl-cronjob.yaml          # EKS saatlik Python ETL CronJob
+│       ├── frontend-deployment.yaml  # EKS frontend Deployment
+│       ├── frontend-service.yaml     # EKS frontend ClusterIP Service
+│       ├── gateway.yaml              # EKS Envoy Gateway
+│       ├── gatewayclass.yaml         # EKS Envoy GatewayClass
+│       └── http-route.yaml           # EKS HTTPRoute
 │
 ├── mern-project/
 │   ├── client/                       # React frontend
@@ -37,49 +45,120 @@ DevOps_Case_Final/
 ├── python-project/
 │   ├── Dockerfile                    # ETL container image
 │   ├── ETL.py                        # Güncel ETL implementation
-│   ├── requirements.txt              # Python bağımlılıkları
-│   └── README.md                     # ETL başlangıç açıklamaları
+│   ├── README.md                     # ETL başlangıç açıklamaları
+│   └── requirements.txt              # Python bağımlılıkları
 │
 ├── scripts/
 │   └── check-alerts.ps1              # Kritik alarm kontrolleri
 │
-├── .env                              # Yerel environment/config
 ├── .gitignore
+├── CASE_END_ANSWERS.md                # İngilizce case cevapları
+├── CASE_SONU_CEVAPLARI.md             # Case sonu cevapları
+├── DevOps_Technical_Case_EN.docx      # İngilizce case dokümanı
+├── DevOps_Teknik_Case_TR.docx         # Türkçe case dokümanı
 ├── docker-compose.yml                # Local Docker Compose ortamı
-├── setup-k8s.ps1                     # Kubernetes kurulum/doğrulama script'i
-├── CASE_SONU_CEVAPLARI.md            # Case sonu cevapları
-├── CASE_END_ANSWERS.md               # İngilizce case cevapları
-├── TESLIM_KANITLARI.md               # Çalışma kanıtları
-├── SUBMISSION_EVIDENCE.md            # İngilizce teslim kanıtları
-├── DevOps_Teknik_Case_TR.docx        # Türkçe case dokümanı
-├── DevOps_Technical_Case_EN.docx     # İngilizce case dokümanı
-├── README.md                         # Proje ve çalıştırma dokümantasyonu
-└── README_EN.md                      # İngilizce README
+├── eks-cluster.yaml                  # AWS EKS cluster ve node group yapılandırması
+├── README_EN.md                        # İngilizce README
+├── README.md                           # Proje ve çalıştırma dokümantasyonu
+├── setup-k8s.ps1                     # Local Kubernetes kurulum/doğrulama script'i
+├── SUBMISSION_EVIDENCE.md             # İngilizce teslim kanıtları
+└── TESLIM_KANITLARI.md                # Çalışma kanıtları
 ```
+
+## Mevcut AWS EKS Deployment
+
+Projenin **bu çalışma sırasında kullanılan mevcut AWS EKS deployment'ına** aşağıdaki adresler üzerinden doğrudan erişilebilir:
+
+**Uygulama:**
+
+```text
+http://[REDACTED].eu-central-1.elb.amazonaws.com/
+```
+
+**Records:**
+
+```text
+http://[REDACTED].eu-central-1.elb.amazonaws.com/records
+```
+
+**Backend healthcheck:**
+
+```text
+http://[REDACTED].eu-central-1.elb.amazonaws.com/api/healthcheck
+```
+
+> **Önemli:** Yukarıdaki adresler, bu çalışma sırasında oluşturulmuş olan mevcut AWS Load Balancer'a aittir. Bu adresler **kalıcı bir production URL'si olarak değerlendirilmemelidir**. Özellikle EKS cluster'ı, Envoy Gateway veya Load Balancer yeniden oluşturulursa AWS yeni bir hostname atayabilir. Ayrıca teslim sonrasında kullanılan AWS kaynaklarının kaldırılması durumunda yukarıdaki adreslere erişim mümkün olmayabilir.
+
+### Güncel EKS erişim adresini bulma
+
+AWS Load Balancer tarafından verilen güncel hostname'i Kubernetes üzerinden terminal çıktısından öğrenebilirsiniz.
+
+Öncelikle Envoy Gateway Service'lerini görüntüleyin:
+
+```powershell
+kubectl get svc -n envoy-gateway-system
+```
+
+Çıktıda `TYPE` değeri `LoadBalancer` olan Envoy Gateway Service'ini bulun. Bu satırdaki `EXTERNAL-IP` alanı, AWS tarafından atanmış güncel Load Balancer hostname'idir.
+
+Örneğin:
+
+```text
+NAME                                      TYPE           CLUSTER-IP      EXTERNAL-IP
+envoy-devops-case-devops-gateway-...     LoadBalancer   10.x.x.x        <AWS Load Balancer hostname>
+```
+
+Güncel hostname'i daha ayrıntılı görmek için:
+
+```powershell
+kubectl get svc -n envoy-gateway-system -o wide
+```
+
+Buradaki `<AWS Load Balancer hostname>` değeri kullanılarak erişim adresleri aşağıdaki biçimde oluşturulur:
+
+```text
+http://<EXTERNAL-IP>/
+http://<EXTERNAL-IP>/records
+http://<EXTERNAL-IP>/api/healthcheck
+```
+
+Dolayısıyla README'deki mevcut hostname artık geçerli değilse, yeni adresi yeniden README'ye eklemek yerine öncelikle Kubernetes Service üzerinden güncel `EXTERNAL-IP` değeri kontrol edilmelidir.
+
 
 ## Sistem Mimarisi
 
-Uygulama aşağıdaki temel bileşenlerden oluşmaktadır:
+Uygulamanın AWS EKS üzerindeki temel istek akışı aşağıdaki şekildedir:
 
 ```text
 Kullanıcı / Browser
         ↓
+AWS Elastic Load Balancer
+        ↓
 Envoy Gateway
         ↓
 HTTPRoute
-        ↓
-Frontend Service
-        ↓
-React + NGINX
-        ↓
-Backend Service
-        ↓
-Node.js + Express
-        ↓
+   ┌────┴────┐
+   ↓         ↓
+Frontend   Backend
+Service    Service
+   ↓         ↓
+React      Node.js
++ NGINX    + Express
+              ↓
+          MongoDB Atlas
+```
+
+Python ETL ayrı bir iş akışı olarak GitHub API'den repository bilgisini alarak MongoDB'deki `github_repositories` collection'ını günceller:
+
+```text
+GitHub API
+    ↓
+Python ETL
+    ↓
 MongoDB Atlas
 ```
 
-Python ETL ise GitHub API'den repository bilgisini alarak MongoDB'deki `github_repositories` collection'ını günceller.
+Local Kubernetes ortamında AWS Elastic Load Balancer yerine local Envoy Gateway üzerinden erişim sağlanabilir.
 
 Ayrıntılı mimari diyagram ve bileşen açıklamaları:
 
@@ -93,14 +172,26 @@ Ayrıntılı mimari diyagram ve bileşen açıklamaları:
 * Python
 * Docker / Docker Compose
 * Kubernetes
+* AWS EKS
+* Amazon ECR
+* AWS IAM
+* GitHub Actions
+* GitHub OIDC
+* Kubernetes RBAC
 * Envoy Gateway
 * Helm
-* GitHub Actions
 * Kind
 
 ## Gereksinimler
 
-Yerel çalıştırma için aşağıdaki araçların kurulu olması gerekir:
+AWS üzerinde çalışan mevcut deployment'ı kullanmak için temel olarak:
+
+* AWS hesabı ve gerekli yetkiler
+* GitHub repository erişimi
+
+gereklidir.
+
+Local çalıştırma veya geliştirme için ayrıca:
 
 * Docker Desktop
 * Docker Compose
@@ -109,13 +200,20 @@ Yerel çalıştırma için aşağıdaki araçların kurulu olması gerekir:
 * `kubectl`
 * Helm
 
-Kubernetes çalıştırılacaksa Docker Desktop Kubernetes veya uygun bir Kubernetes cluster'ı kullanılabilir.
+kullanılabilir.
+
+AWS EKS yönetimi ve infrastructure işlemleri için ayrıca:
+
+* AWS CLI
+* `eksctl`
+
+kullanılabilir.
 
 ## Konfigürasyon
 
 Secret veya bağlantı bilgileri source code içerisinde hardcode edilmemiştir.
 
-Repository klonlandıktan sonra çalıştırma ortamına ait bazı değerlerin kullanıcı tarafından hazırlanması gerekir. Bu değerler özellikle MongoDB Atlas ve GitHub API erişimi için gereklidir.
+Cloud deployment'ında hassas değerler GitHub Actions Secrets üzerinden Kubernetes Secret kaynaklarına aktarılmaktadır. Local çalıştırmada ise `.env` dosyası kullanılmaktadır.
 
 ### 1. MongoDB Atlas hazırlığı
 
@@ -149,17 +247,15 @@ Kullanılan token yalnızca gerekli GitHub API erişimlerini içermelidir.
 
 ### 3. `.env` dosyasını oluşturma
 
-Proje kökünde `.env` adlı bir dosya oluşturun.
+Local çalıştırma için proje kökünde `.env` adlı bir dosya oluşturun.
 
 Örnek yapı:
 
 ```text
 ATLAS_URI=<MongoDB Atlas connection string>
-
 GITHUB_OWNER=<GitHub owner>
 GITHUB_REPO=<GitHub repository>
 GITHUB_TOKEN=<GitHub token>
-
 MONGODB_DB=sample_training
 MONGODB_URI=<MongoDB connection string>
 MONGODB_COLLECTION=github_repositories
@@ -186,71 +282,84 @@ Kurulum sırasında aşağıdaki isimlerin kod ve konfigürasyon ile uyumlu olma
 
 ### 5. Kubernetes Secret'ları
 
-`setup-k8s.ps1` script'i `.env` içerisindeki hassas değerleri okuyarak gerekli Kubernetes Secret kaynaklarını oluşturur.
+Local Kubernetes deployment'ında `setup-k8s.ps1` script'i `.env` içerisindeki hassas değerleri okuyarak gerekli Kubernetes Secret kaynaklarını oluşturur.
 
-Bu nedenle Kubernetes deployment'ından önce `.env` dosyasının hazırlanmış olması gerekir.
+AWS EKS deployment'ında ise Secret değerleri GitHub Actions Secrets üzerinden alınarak EKS namespace'indeki Kubernetes Secret kaynaklarına aktarılır.
 
-Script secret değerlerini ekrana yazdırmadan kullanacak şekilde tasarlanmıştır.
+Secret değerleri workflow dosyasına veya source code'a hardcode edilmemektedir.
 
 ---
 
 ## İlk Kurulum
 
-Repository klonlandıktan sonra önerilen sıra şöyledir:
+Projenin ana deployment ortamı AWS EKS'dir. Repository'de AWS EKS cluster'ı, ECR image repository'leri ve GitHub Actions tabanlı CI/CD deployment yapısı tanımlanmıştır.
+
+Mevcut cloud deployment için temel akış:
 
 ```text
-Repository'yi klonla
+Repository
         ↓
-Gerekli araçları kur
+MongoDB Atlas hazırlanması
         ↓
-MongoDB Atlas'ı hazırla
+GitHub Actions Secrets
         ↓
-GitHub API token oluştur
+main branch'e push
         ↓
-.env dosyasını oluştur
+CI validation
         ↓
-Docker Desktop Kubernetes'i etkinleştir
+GitHub OIDC
         ↓
-setup-k8s.ps1 çalıştır
+AWS IAM Role
         ↓
-Kubernetes workload'larını doğrula
+Amazon ECR
         ↓
-Frontend / backend endpoint'lerini test et
+AWS EKS
         ↓
-ETL Job / CronJob loglarını kontrol et
+Frontend / Backend / ETL
 ```
 
-Kubernetes kurulumu için:
+AWS EKS cluster yapılandırması:
 
-```powershell
-.\setup-k8s.ps1
+```text
+Cluster:
+devops-case-eks
+
+Region:
+eu-central-1
+
+Managed node group:
+devops-workers
+
+Node instance type:
+t3.small
 ```
 
-Kurulum tamamlandıktan sonra:
+EKS deployment'ında kullanılan manifestler:
+
+```text
+k8s/eks/
+```
+
+AWS EKS ortamını kontrol etmek için:
 
 ```powershell
+eksctl get cluster --region eu-central-1
+kubectl get nodes -o wide
 kubectl get pods -n devops-case
-kubectl get services -n devops-case
+kubectl get deployments -n devops-case
 kubectl get cronjobs -n devops-case
+kubectl get services -n devops-case
 ```
 
-ile workload durumu kontrol edilebilir.
+Cloud dış erişimi Envoy Gateway tarafından oluşturulan AWS Elastic Load Balancer üzerinden sağlanmaktadır.
 
-Frontend:
+Local geliştirme veya test gerektiğinde aşağıdaki local çalışma yöntemleri ayrıca kullanılabilir.
 
-```text
-http://localhost/
-```
+---
 
-Backend healthcheck:
+## Alternatif: Docker Compose
 
-```text
-http://localhost/api/healthcheck/
-```
-
-### Alternatif: Docker Compose
-
-Kubernetes kullanmadan önce local container ortamını doğrulamak için:
+Kubernetes kullanmadan local container ortamını doğrulamak için:
 
 ```powershell
 docker compose build
@@ -274,7 +383,6 @@ Compose ortamını kapatmak için:
 ```powershell
 docker compose down
 ```
-
 
 ## MERN Uygulamasını Çalıştırma
 
@@ -353,7 +461,7 @@ docker compose down
 
 ## Kubernetes Deployment
 
-Kubernetes manifestleri `k8s/` klasöründe bulunmaktadır.
+Local Kubernetes manifestleri `k8s/` klasöründe bulunmaktadır.
 
 Kurulumun otomatik gerçekleştirilmesi için:
 
@@ -400,6 +508,51 @@ Backend healthcheck:
 http://localhost/api/healthcheck/
 ```
 
+## AWS EKS Deployment
+
+AWS EKS'e özel Kubernetes manifestleri:
+
+```text
+k8s/eks/
+```
+
+altında bulunmaktadır.
+
+EKS deployment'ında:
+
+```text
+Frontend → Deployment + ClusterIP Service
+Backend  → Deployment + ClusterIP Service
+ETL      → CronJob
+Gateway  → Envoy Gateway
+Routing  → HTTPRoute
+```
+
+şeklinde çalışmaktadır.
+
+Container image'ları Amazon ECR'dan alınmaktadır.
+
+EKS üzerinde çalışan workload'ları kontrol etmek için:
+
+```powershell
+kubectl get pods -n devops-case -o wide
+kubectl get deployments -n devops-case
+kubectl get services -n devops-case
+kubectl get cronjobs -n devops-case
+kubectl get gateway -n devops-case
+kubectl get httproute -n devops-case
+```
+
+EKS dış erişiminde `/` istekleri frontend'e, `/api` istekleri backend'e yönlendirilir.
+
+Backend healthcheck:
+
+```text
+/api/healthcheck
+```
+
+AWS Load Balancer üzerinden erişilebilir durumdadır.
+
 ## Kubernetes Workloads
 
 Frontend:
@@ -426,6 +579,8 @@ ETL schedule:
 0 * * * *
 ```
 
+ETL `Europe/Istanbul` timezone'u kullanarak saatlik çalışmaktadır.
+
 ETL aynı repository tekrar işlendiğinde `github_id` alanını kullanarak mevcut kaydı günceller.
 
 ## Kubernetes Security
@@ -442,7 +597,9 @@ Ayrıca Kubernetes workload'larında:
 
 ```yaml
 runAsNonRoot: true
+
 allowPrivilegeEscalation: false
+
 capabilities:
   drop:
     - ALL
@@ -463,7 +620,7 @@ GitHub API
     ↓
 Python ETL
     ↓
-MongoDB
+MongoDB Atlas
 ```
 
 Kubernetes üzerinde ETL saatlik olarak çalışmaktadır.
@@ -476,10 +633,11 @@ github_id = 1361100555
 
 üzerinden mevcut document güncellenir ve duplicate kayıt oluşturulmaz.
 
-ETL loglarında aşağıdaki gibi bir kayıt görülür:
+ETL loglarında aşağıdaki gibi kayıtlar görülür:
 
 ```text
 UPDATE: repository updated
+Updated fields: ...
 MongoDB document count: 1
 ETL completed successfully.
 ```
@@ -503,9 +661,13 @@ Docker image build
         ↓
 CI başarılı
         ↓
-Kind Kubernetes cluster
+GitHub OIDC
         ↓
-Image load
+AWS IAM Role
+        ↓
+Amazon ECR image push
+        ↓
+AWS EKS authentication
         ↓
 Kubernetes deployment
         ↓
@@ -516,11 +678,92 @@ Backend healthcheck
 Frontend HTTP check
 ```
 
-Deployment job'ı yalnızca CI başarıyla tamamlandığında çalışır.
+Pull Request açıldığında `validate-and-build` job'ı çalışır; deployment yapılmaz.
 
-CI deployment doğrulaması için GitHub Actions üzerinde geçici bir Kind cluster oluşturur. Bu ortamda test amacıyla geçici bir MongoDB container'ı da çalıştırılır.
+`main` branch'ine yapılan başarılı push sonrasında `deploy-eks` job'ı çalışır.
 
-Bu MongoDB yalnızca CI/CD doğrulaması içindir. Normal uygulama deployment'ında kullanılan veri katmanı MongoDB Atlas'tır.
+Deployment job'ı:
+
+1. GitHub OIDC üzerinden AWS IAM Role'u assume eder.
+2. Frontend, backend ve ETL Docker image'larını build eder.
+3. Image'ları Git commit SHA ile tag'ler.
+4. Image'ları Amazon ECR'a push eder.
+5. EKS cluster'ı için kubeconfig oluşturur.
+6. Kubernetes Secret kaynaklarını günceller.
+7. `k8s/eks/` altındaki Service, Deployment ve CronJob kaynaklarını uygular.
+8. Deployment image'larını commit SHA tag'lerine günceller.
+9. Gateway ve HTTPRoute kaynaklarını uygular.
+10. Backend ve frontend rollout durumlarını kontrol eder.
+11. AWS Load Balancer üzerinden backend healthcheck gerçekleştirir.
+12. Frontend dış erişimini doğrular.
+
+CI aşamasındaki bir build veya validation adımı başarısız olduğunda `deploy-eks` job'ı çalıştırılmamaktadır.
+
+## GitHub OIDC ve AWS Authentication
+
+GitHub Actions'ın AWS erişimi için uzun ömürlü AWS access key kullanılmamaktadır.
+
+Authentication akışı:
+
+```text
+GitHub Actions
+      ↓
+GitHub OIDC token
+      ↓
+GitHubActions-EKS-Deploy IAM Role
+      ↓
+Geçici AWS credentials
+      ↓
+Amazon ECR + AWS EKS
+```
+
+IAM Role, GitHub repository ve `main` branch'i ile sınırlı OIDC trust policy kullanmaktadır.
+
+## EKS RBAC
+
+GitHub Actions IAM Role'u EKS Access Entry aracılığıyla:
+
+```text
+github-actions-deploy
+```
+
+Kubernetes grubuna bağlanmıştır.
+
+Bu grup için:
+
+```text
+devops-case
+```
+
+namespace'i ile sınırlı Kubernetes `Role` ve `RoleBinding` tanımlanmıştır.
+
+GitHub Actions'a `cluster-admin` yetkisi verilmemiştir.
+
+RBAC tanımı:
+
+```text
+k8s/eks/cd-rbac.yaml
+```
+
+## Amazon ECR
+
+CI/CD pipeline'ında üç ayrı Amazon ECR repository'si kullanılmaktadır:
+
+```text
+devops-case-backend
+devops-case-frontend
+devops-case-etl
+```
+
+Image'lar Git commit SHA'sı kullanılarak tag'lenmektedir.
+
+Örnek:
+
+```text
+devops-case-etl:<commit-sha>
+```
+
+Bu yapı deployment edilen image sürümünün ilgili source commit ile doğrudan ilişkilendirilebilmesini sağlar.
 
 ## Backup ve Restore
 
@@ -545,6 +788,8 @@ Ayrıntılı komutlar, retention, RPO/RTO ve production sınırlamaları:
 ## Logging ve Alerts
 
 Backend ve Python ETL tarafında operasyonel loglar kullanılmaktadır.
+
+ETL logları repository bilgisi, MongoDB bağlantısı, update işlemi, document count ve başarılı tamamlanma durumlarını göstermektedir.
 
 Ayrıca:
 
@@ -579,6 +824,10 @@ Başlıca iyileştirmeler:
 * Kubernetes securityContext
 * ETL duplicate prevention
 * CI/CD validation ve deployment kontrolü
+* AWS EKS deployment
+* Amazon ECR image management
+* GitHub OIDC authentication
+* Namespace-scoped Kubernetes RBAC
 
 ## Rollback
 
@@ -598,9 +847,11 @@ kubectl rollout undo deployment/frontend -n devops-case
 
 Rollback sonrasında rollout ve healthcheck kontrolleri tekrar gerçekleştirilir.
 
+Deployment edilen image'lar commit SHA ile tag'lendiği için önceki image sürümü Amazon ECR üzerinde de belirlenebilir.
+
 ## Temizlik
 
-Kubernetes workload'larını kaldırmak için:
+Local Kubernetes workload'larını kaldırmak için:
 
 ```powershell
 kubectl delete namespace devops-case
@@ -613,6 +864,8 @@ docker compose down
 ```
 
 Yerel olarak oluşturulan kullanılmayan Docker image'ları ayrıca Docker üzerinden temizlenebilir.
+
+EKS üzerindeki application workload'larını kaldırmak, EKS cluster'ını veya AWS altyapısını otomatik olarak silmez. Cluster ve altyapı temizliği ayrı olarak yönetilmelidir.
 
 ## Dokümantasyon ve Kanıtlar
 
@@ -636,6 +889,10 @@ Case sonu cevapları:
 
 `TESLIM_KANITLARI.md`
 
+İngilizce teslim kanıtları:
+
+`SUBMISSION_EVIDENCE.md`
+
 Ekran görüntüleri:
 
 `docs/screenshots/`
@@ -643,3 +900,4 @@ Ekran görüntüleri:
 Ana case dokümanı:
 
 `DevOps_Teknik_Case_TR.docx`
+
