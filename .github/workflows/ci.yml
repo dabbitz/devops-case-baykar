@@ -95,6 +95,12 @@ jobs:
       - name: Build ETL image
         run: docker build -t devops-case-etl:k8s ./python-project
 
+      - name: Pull MongoDB image
+        run: docker pull mongo:8.0
+
+      - name: Load MongoDB image into Kind
+        run: kind load docker-image mongo:8.0
+
       - name: Load images into Kind
         run: |
           kind load docker-image devops-case-backend:k8s
@@ -104,16 +110,21 @@ jobs:
       - name: Create namespace
         run: kubectl apply -f k8s/namespace.yaml
 
+      - name: Deploy CI MongoDB
+        run: |
+          kubectl apply -f k8s/ci-mongodb.yaml
+          kubectl rollout status deployment/mongodb -n devops-case --timeout=120s
+
       - name: Create Kubernetes secrets
         run: |
           kubectl create secret generic backend-secret \
             -n devops-case \
-            --from-literal=ATLAS_URI="${{ secrets.ATLAS_URI }}"
+            --from-literal=ATLAS_URI="mongodb://mongodb-service:27017"
 
           kubectl create secret generic etl-secret \
             -n devops-case \
             --from-literal=GITHUB_TOKEN="${{ secrets.GH_API_TOKEN }}" \
-            --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}"
+            --from-literal=MONGODB_URI="mongodb://mongodb-service:27017"
 
       - name: Apply application workloads
         run: |
