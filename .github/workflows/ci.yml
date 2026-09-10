@@ -71,3 +71,75 @@ jobs:
 
       - name: Build ETL image
         run: docker build -t devops-case-etl:ci ./python-project
+  deploy:
+    name: Deploy to Kubernetes
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: validate-and-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create Kubernetes cluster
+        uses: helm/kind-action@v1.14.0
+
+      - name: Build backend image
+        run: docker build -t devops-case-backend:k8s ./mern-project/server
+
+      - name: Build frontend image
+        run: docker build --build-arg REACT_APP_API_URL=/api -t devops-case-frontend:k8s ./mern-project/client
+
+      - name: Build ETL image
+        run: docker build -t devops-case-etl:k8s ./python-project
+
+      - name: Load images into Kind
+        run: |
+          kind load docker-image devops-case-backend:k8s
+          kind load docker-image devops-case-frontend:k8s
+          kind load docker-image devops-case-etl:k8s
+
+      - name: Create namespace
+        run: kubectl apply -f k8s/namespace.yaml
+
+      - name: Create Kubernetes secrets
+        run: |
+          kubectl create secret generic backend-secret \
+            -n devops-case \
+            --from-literal=ATLAS_URI="${{ secrets.ATLAS_URI }}"
+
+          kubectl create secret generic etl-secret \
+            -n devops-case \
+            --from-literal=GITHUB_TOKEN="${{ secrets.GH_API_TOKEN }}" \
+            --from-literal=MONGODB_URI="${{ secrets.MONGODB_URI }}"
+
+      - name: Apply application workloads
+        run: |
+          kubectl apply -f k8s/backend-service.yaml
+          kubectl apply -f k8s/backend-deployment.yaml
+          kubectl apply -f k8s/frontend-service.yaml
+          kubectl apply -f k8s/frontend-deployment.yaml
+          kubectl apply -f k8s/etl-cronjob.yaml
+
+      - name: Wait for deployments
+        run: |
+          kubectl rollout status deployment/backend -n devops-case --timeout=180s
+          kubectl rollout status deployment/frontend -n devops-case --timeout=180s
+
+      - name: Verify workloads
+        run: |
+          kubectl get pods -n devops-case
+          kubectl get services -n devops-case
+          kubectl get cronjob -n devops-case
+
+      - name: Verify backend health
+        run: |
+          kubectl port-forward service/backend-service 5050:5050 -n devops-case > /tmp/port-forward.log 2>&1 &
+          sleep 5
+          curl --fail http://127.0.0.1:5050/healthcheck/
+
+      - name: Verify frontend
+        run: |
+          kubectl port-forward service/frontend-service 3000:80 -n devops-case > /tmp/frontend-port-forward.log 2>&1 &
+          sleep 5
+          curl --fail http://127.0.0.1:3000/
