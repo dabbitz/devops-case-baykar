@@ -51,6 +51,7 @@ DevOps_Case_Final/
 │   └── requirements.txt             # Python dependencies
 │
 ├── scripts/
+│   ├── backup-restore.ps1           # MongoDB backup/restore script
 │   └── check-alerts.ps1             # Critical alert checks
 │
 ├── .gitignore                       # .gitignore file of the project
@@ -167,42 +168,42 @@ Detailed architecture diagram and component descriptions:
 
 ## Technologies
 
-* React
-* Node.js / Express
-* MongoDB Atlas
-* Python
-* Docker / Docker Compose
-* Kubernetes
-* AWS EKS
-* Amazon ECR
-* AWS IAM
-* GitHub Actions
-* GitHub OIDC
-* Kubernetes RBAC
-* Envoy Gateway
-* Helm
-* Kind
+- React
+- Node.js / Express
+- MongoDB Atlas
+- Python
+- Docker / Docker Compose
+- Kubernetes
+- AWS EKS
+- Amazon ECR
+- AWS IAM
+- GitHub Actions
+- GitHub OIDC
+- Kubernetes RBAC
+- Envoy Gateway
+- Helm
+- Kind
 
 ## Requirements
 
 To use the existing deployment running on AWS, the following are required:
 
-* An AWS account with the necessary permissions
-* Access to the GitHub repository
+- An AWS account with the necessary permissions
+- Access to the GitHub repository
 
 For local execution or development, the following can additionally be used:
 
-* Docker Desktop
-* Docker Compose
-* Node.js 20+
-* Python 3.10+
-* `kubectl`
-* Helm
+- Docker Desktop
+- Docker Compose
+- Node.js 20+
+- Python 3.10+
+- `kubectl`
+- Helm
 
 For AWS EKS management and infrastructure operations:
 
-* AWS CLI
-* `eksctl`
+- AWS CLI
+- `eksctl`
 
 ## Configuration
 
@@ -756,19 +757,37 @@ This allows the deployed image version to be directly associated with the corres
 
 ## Backup and Restore
 
-MongoDB backups are created using `mongodump`, and restores are performed using `mongorestore`.
+MongoDB backup is performed using `mongodump`, while restore is performed using `mongorestore`.
 
-Backup location (won't be seen in the repository as it is included in .gitignore):
+Backup and restore operations can also be executed using the following PowerShell script included in the repository:
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Backup
+
+.\scripts\backup-restore.ps1 -Action Restore
+```
+
+To restore over existing collections:
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Restore -DropExisting
+```
+
+Backup location (not included in the repository because it is excluded by `.gitignore`):
 
 ```text
 backups/sample-training-backup/
 ```
 
-The backup and restore process has been tested end-to-end using real data.
+The backup and restore process has been tested end-to-end using real data. The backup and `-DropExisting` restore scenarios using the `scripts/backup-restore.ps1` script in the repository have also been successfully tested.
 
-Detailed commands, retention, RPO/RTO, and production limitations:
+Detailed commands, script usage, retention, RPO/RTO, and production limitations:
 
 `docs/backup-restore.md`
+
+Backup/restore script:
+
+`scripts/backup-restore.ps1`
 
 Evidence:
 
@@ -889,3 +908,4 @@ Screenshots:
 Main case document:
 
 `DevOps_Technical_Case_EN.docx`
+

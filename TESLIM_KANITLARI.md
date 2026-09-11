@@ -111,6 +111,25 @@ Aynı repository tekrar işlendiğinde duplicate kayıt oluşmadığını ve mev
 
 Aşağıdaki altı adımın tamamı kanıtlanmalıdır. Adımların aynı kayıt üzerinde ve sırayla yapıldığı anlaşılmalıdır.
 
+### 6.0 Backup/Restore Script
+
+- **Script:** `scripts/backup-restore.ps1`
+- **Açıklama:** Backup ve restore işlemleri repository içerisinde bulunan PowerShell script'i üzerinden tekrarlanabilir şekilde çalıştırılabilir. `-Action Backup` ve `-Action Restore -DropExisting` senaryoları başarıyla test edilmiştir. 6.1'de başlayan manual command chain ise kullanılan MongoDB backup yöntemini açıkça göstermektedir.
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Backup
+
+.\scripts\backup-restore.ps1 -Action Restore
+```
+
+Mevcut collection'ların üzerine restore edilmesi gerektiğinde:
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Restore -DropExisting
+```
+
+Script gerçek credential içermemekte; MongoDB bağlantı bilgisini local `.env` içerisindeki `ATLAS_URI` değerinden almaktadır. Backup çıktıları `backups/` altında oluşturulmakta ve `.gitignore` tarafından repository dışında tutulmaktadır.
+
 Aşağıdaki altı adımın tamamı aynı `sample_training` database'i üzerinde ve sırayla gerçekleştirilmiştir.
 
 ### 6.1 Kayıt oluşturma
@@ -124,7 +143,7 @@ Aşağıdaki altı adımın tamamı aynı `sample_training` database'i üzerinde
 - **Görsel veya terminal çıktısı:** `docs/screenshots/31-backup-taken.png`
 - **Kullanılan yöntem ve komutlar (3 komut, sırasıyla, proje kökünden):**
 
-MongoDB Database Tools `mongodump` kullanılmıştır:
+MongoDB Database Tools `mongodump` kullanılmıştır. Backup işlemi doğrudan aşağıdaki script ile de çalıştırılabilir:
 
 ```powershell
 New-Item -ItemType Directory -Path ".\backups" -Force
@@ -136,6 +155,9 @@ $atlasUri = (Get-Content .\.env | Where-Object { $_ -match '^ATLAS_URI=' }) -rep
   --db=sample_training `
   --out=".\backups\sample-training-backup"
 ```
+
+Script, `mongodump` komutunu gerekli parametrelerle çalıştırmaktadır. Manual command chain yalnızca kullanılan yöntemin açıkça gösterilmesi amacıyla verilmiştir.
+
 - **Yedeğin saklandığı konum:** `backups/sample-training-backup`
 - **Açıklama:** Tüm `sample_training` database'i yedeklenmiştir. Backup çıktısında `sample_training.records` için 1 document ve `sample_training.github_repositories` için 1 document yedeklendiği görülmektedir.
 

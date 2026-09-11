@@ -70,9 +70,9 @@ Frontend React ile geliştirilmiş ve production container içerisinde NGINX tar
 
 Görevleri:
 
-* Kullanıcı arayüzünü sunmak
-* Record oluşturma ve güncelleme işlemlerini başlatmak
-* Backend API'lerine HTTP istekleri göndermek
+- Kullanıcı arayüzünü sunmak
+- Record oluşturma ve güncelleme işlemlerini başlatmak
+- Backend API'lerine HTTP istekleri göndermek
 
 Frontend Kubernetes üzerinde:
 
@@ -98,11 +98,11 @@ Backend Node.js ve Express kullanmaktadır.
 
 Başlıca görevleri:
 
-* REST API sağlamak
-* Record CRUD işlemlerini gerçekleştirmek
-* Input ve ObjectId validation yapmak
-* MongoDB ile iletişim kurmak
-* Healthcheck endpoint'i sağlamak
+- REST API sağlamak
+- Record CRUD işlemlerini gerçekleştirmek
+- Input ve ObjectId validation yapmak
+- MongoDB ile iletişim kurmak
+- Healthcheck endpoint'i sağlamak
 
 Backend Kubernetes üzerinde:
 
@@ -569,6 +569,12 @@ mongodump
 backups/sample-training-backup/
 ```
 
+Backup işlemi repository içerisindeki `scripts/backup-restore.ps1` script'i ile de tekrarlanabilir:
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Backup
+```
+
 Restore:
 
 ```text
@@ -581,13 +587,22 @@ MongoDB Atlas
 Database / UI verification
 ```
 
-Backup ve restore süreci gerçek veri üzerinde uçtan uca test edilmiştir.
+Restore işlemi script üzerinden de çalıştırılabilir:
 
-Detaylı yöntem, komutlar, retention, RPO/RTO ve production sınırlamaları:
+```powershell
+.\scripts\backup-restore.ps1 -Action Restore
+.\scripts\backup-restore.ps1 -Action Restore -DropExisting
+```
+
+Backup ve restore süreci gerçek veri üzerinde uçtan uca test edilmiştir. `-Action Backup` ve `-Action Restore -DropExisting` senaryoları da başarıyla test edilmiştir.
+
+Mevcut case ortamında otomatik backup sıklığı ve retention policy uygulanmamıştır. Backup yöntemi, restore adımları, RPO/RTO ve production sınırlamaları:
 
 ```text
 docs/backup-restore.md
 ```
+
+içerisinde detaylandırılmıştır.
 
 ---
 

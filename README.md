@@ -51,6 +51,7 @@ DevOps_Case_Final/
 │   └── requirements.txt              # Python bağımlılıkları
 │
 ├── scripts/
+│   ├── backup-restore.ps1            # MongoDB backup/restore script'i
 │   └── check-alerts.ps1              # Kritik alarm kontrolleri
 │
 ├── .gitignore                        # Projenin .gitignore dosyası
@@ -779,17 +780,34 @@ Bu yapı deployment edilen image sürümünün ilgili source commit ile doğruda
 
 MongoDB backup için `mongodump`, restore için `mongorestore` kullanılmıştır.
 
-Backup konumu (repository'de gözükmez çünkü .gitignore'dadır):
+Backup ve restore işlemleri repository içerisinde bulunan aşağıdaki PowerShell script'i üzerinden de çalıştırılabilir:
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Backup
+.\scripts\backup-restore.ps1 -Action Restore
+```
+
+Mevcut collection'ların üzerine restore edilmesi gerektiğinde:
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Restore -DropExisting
+```
+
+Backup konumu (repository'de gözükmez çünkü `.gitignore`'dadır):
 
 ```text
 backups/sample-training-backup/
 ```
 
-Backup ve restore süreci gerçek veri üzerinde uçtan uca test edilmiştir.
+Backup ve restore süreci gerçek veri üzerinde uçtan uca test edilmiştir. Repository'deki `scripts/backup-restore.ps1` script'i ile backup ve `-DropExisting` restore senaryoları da başarıyla test edilmiştir.
 
-Ayrıntılı komutlar, retention, RPO/RTO ve production sınırlamaları:
+Ayrıntılı komutlar, script kullanımı, retention, RPO/RTO ve production sınırlamaları:
 
 `docs/backup-restore.md`
+
+Backup/restore script'i:
+
+`scripts/backup-restore.ps1`
 
 Çalışma kanıtları:
 
@@ -916,5 +934,6 @@ Ekran görüntüleri:
 Ana case dokümanı:
 
 `DevOps_Teknik_Case_TR.docx`
+
 
 

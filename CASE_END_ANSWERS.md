@@ -403,7 +403,7 @@ github_repositories     → 1 document
 Total                   → 2 documents
 ```
 
-The current case solution uses **manual backups**; no automated backup schedule or retention policy is implemented. A production target of **RPO ≤ 24 hours** can be defined. The measured restore command time was approximately **1.3 seconds**; this only represents the command execution time and is **not considered a production RTO**.
+The backup process is not automatically scheduled in the current case solution; the actual E2E test was performed manually. In addition, the `scripts/backup-restore.ps1` PowerShell script has been added to the repository to enable repeatable backup and restore operations. The `-Action Backup` and `-Action Restore -DropExisting` scenarios have been successfully tested. No automated backup frequency or retention policy has been implemented.
 
 Restore validation included:
 
@@ -422,7 +422,7 @@ Restore result:
 In production, I would use automated and encrypted backups, defined retention, off-site/object storage, regular restore tests, and actual RPO/RTO monitoring.
 
 Runbook: `docs/backup-restore.md`
-
+Script: `scripts/backup-restore.ps1`
 Evidence: the backup/restore section of `SUBMISSION_EVIDENCE.md`:
 
 - **Record creation 1:** `docs/screenshots/29-backup-record-created-01.png`
@@ -450,6 +450,6 @@ The CI/CD flow uses GitHub OIDC with an AWS IAM Role, pushes images to Amazon EC
 
 Liveness/readiness probes, CPU/memory resource requests/limits, and a controlled rolling update configuration suitable for the single-node EKS environment have also been implemented and verified on the actual EKS environment.
 
-The core requirements specified in the case have been implemented and verified. In addition, extra work has been completed in the areas of packaging/environment management and advanced observability.
+The core requirements specified in the case have been implemented and verified. In addition, controlled rolling updates and capacity-aware workload configuration have been implemented in the high availability/scalability area, while verified alert scenarios have been implemented in the advanced observability area.
 
 The current solution has been completed to satisfy the case requirements. Further production improvements could include fully managed IaC, advanced monitoring and autoscaling, centralized secret management, and more advanced disaster recovery.

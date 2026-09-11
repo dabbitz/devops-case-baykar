@@ -111,6 +111,25 @@ Show that processing the same repository again did not create a duplicate and in
 
 All six steps below must be evidenced. It must be clear that the steps were performed in order and on the same record.
 
+### 6.0 Backup/Restore Script
+
+- **Script:** `scripts/backup-restore.ps1`
+- **Explanation:** Backup and restore operations can be executed reproducibly using the PowerShell script included in the repository. The `-Action Backup` and `-Action Restore -DropExisting` scenarios have been successfully tested. The manual command chain beginning in Section 6.1 is provided to clearly document the MongoDB backup method used.
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Backup
+
+.\scripts\backup-restore.ps1 -Action Restore
+```
+
+To restore over existing collections:
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Restore -DropExisting
+```
+
+The script does not contain any real credentials; it reads the MongoDB connection string from the `ATLAS_URI` value in the local `.env` file. Backup output is created under `backups/` and excluded from the repository through `.gitignore`.
+
 ### 6.1 Record creation
 
 - **Screenshot 1:** `docs/screenshots/29-backup-record-created-01.png`
@@ -122,7 +141,7 @@ All six steps below must be evidenced. It must be clear that the steps were perf
 - **Screenshot or terminal output:** `docs/screenshots/31-backup-taken.png`
 - **Method and command(s) used (3 commands, executed sequentially from the project root):**
 
-MongoDB Database Tools `mongodump` was used:
+MongoDB Database Tools `mongodump` was used. The backup can also be performed directly using the following script:
 
 ```powershell
 New-Item -ItemType Directory -Path ".\backups" -Force
@@ -134,6 +153,9 @@ $atlasUri = (Get-Content .\.env | Where-Object { $_ -match '^ATLAS_URI=' }) -rep
   --db=sample_training `
   --out=".\backups\sample-training-backup"
 ```
+
+The script runs the `mongodump` command with the required parameters. The manual command chain is provided only to clearly document the method used.
+
 - **Backup storage location:** `backups/sample-training-backup`
 - **Explanation:** The entire `sample_training` database was backed up. The backup output shows 1 document for `sample_training.records` and 1 document for `sample_training.github_repositories`.
 

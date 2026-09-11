@@ -140,7 +140,6 @@ Uygulamanın kendi Kubernetes kaynakları düz manifest dosyalarıyla yönetilmi
 Karşılaştırma ve Tercih Nedenleri:
 
 - **Düz Manifestler**: Okunması, anlaşılması ve hata ayıklaması en kolay yöntemdir. Projede çoklu ortam ihtiyacı olmadığı için kendi kaynaklarımızı düz YAML dosyalarıyla yönetiyoruz.
-
 - **Helm / Kustomize**: Şablonlama, parametre yönetimi ve versiyonlama sunar. Ancak mevcut proje ölçeğinde kendi manifestlerimiz için kullanılması gereksiz karmaşıklık oluşturacağından, yalnızca Envoy Gateway gibi üçüncü taraf bağımlılıkların yönetiminde kullanılmıştır.
 
 Envoy Gateway ise birden fazla ilişkili Kubernetes kaynağından oluşan third-party bir bileşen olduğundan, resmi Helm chart'ı üzerinden kurulmuştur.
@@ -410,7 +409,7 @@ Total                   → 2 documents
 
 yedeklenmiştir.
 
-Mevcut case çözümünde backup **manuel** alınmaktadır; otomatik backup sıklığı ve retention uygulanmamıştır. Production hedefi olarak **RPO ≤ 24 saat** belirlenebilir. Ölçülen restore komut süresi yaklaşık **1.3 saniyedir**; bu değer yalnızca komut süresidir ve production **RTO olarak kabul edilmemektedir**.
+Mevcut case çözümünde backup işlemi otomatik zamanlanmış bir mekanizma ile çalıştırılmamaktadır; gerçek E2E test manuel olarak gerçekleştirilmiştir. Bunun yanında backup ve restore işlemlerini tekrarlanabilir şekilde çalıştırmak için `scripts/backup-restore.ps1` PowerShell script'i repository'ye eklenmiştir. `-Action Backup` ve `-Action Restore -DropExisting` senaryoları başarıyla test edilmiştir. Otomatik backup sıklığı ve retention uygulanmamıştır.
 
 Restore doğrulamasında:
 
@@ -429,6 +428,7 @@ Restore sonucu:
 Production ortamında otomatik ve encrypted backup, tanımlı retention, off-site/object storage, düzenli restore testleri ve gerçek RPO/RTO takibi kullanırdım.
 
 Runbook: `docs/backup-restore.md`
+Script: `scripts/backup-restore.ps1`
 Kanıtlar: `TESLIM_KANITLARI.md` "6. Backup ve Restore" bölümünden:
 
 - **Kayıt oluşturma 1:** `docs/screenshots/29-backup-record-created-01.png`
@@ -456,6 +456,6 @@ CI/CD akışında GitHub OIDC ile AWS IAM Role kullanılmış, image'lar commit 
 
 Kubernetes workload'ları için liveness/readiness probes, CPU/memory resource requests/limits ve tek node'lu EKS ortamına uygun kontrollü rolling update yapılandırması da uygulanmış ve gerçek EKS ortamında doğrulanmıştır.
 
-Ana case kriterlerinde belirtilen temel gereksinimler uygulanmış ve doğrulanmıştır. Ayrıca üst kriterlerden paketleme ve ortam yönetimi ile ileri gözlemlenebilirlik alanlarında ek uygulamalar gerçekleştirilmiştir.
+Ana case kriterlerinde belirtilen temel gereksinimler uygulanmış ve doğrulanmıştır. Ayrıca üst kriterlerden yüksek erişilebilirlik/ölçekleme alanında kontrollü rolling update ve kapasiteye uygun workload yapılandırması, ileri gözlemlenebilirlik alanında ise doğrulanmış alarm senaryoları uygulanmıştır.
 
 Mevcut çözüm case kapsamındaki gereksinimleri karşılayacak şekilde tamamlanmıştır. Daha ileri production ihtiyaçları olarak altyapının tamamen IaC ile yönetilmesi, gelişmiş monitoring ve autoscaling, merkezi secret management ve gelişmiş disaster recovery sonraki geliştirme alanları olarak değerlendirilebilir.

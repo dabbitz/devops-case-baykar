@@ -9,10 +9,10 @@ Bu runbook, MongoDB Atlas üzerinde kullanılan `sample_training` database'inin 
 |                                                                        |                                                                                                                                                                                                                                                                                                                                                      |
 | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Yedekleme yöntemi / Backup method                                      | MongoDB Database Tools `mongodump` kullanılarak `sample_training` database'inin tamamı yedeklenmiştir.                                                                                                                                                                                                                                               |
-| Nasıl çalıştırılıyor / Execution method (script, Job, CronJob, manuel) | Bu case kapsamında manuel PowerShell komutu ile çalıştırılmıştır. Production ortamında zamanlanmış ve otomatik bir backup mekanizması tercih edilmelidir.                                                                                                                                                                                            |
+| Nasıl çalıştırılıyor / Execution method (script, Job, CronJob, manuel) | Bu case kapsamında gerçek E2E backup testi manuel olarak gerçekleştirilmiştir. Backup ve restore işlemleri ayrıca `scripts/backup-restore.ps1` PowerShell script'i üzerinden tekrarlanabilir şekilde çalıştırılabilir. Production ortamında zamanlanmış ve otomatik bir backup mekanizması tercih edilmelidir.                                                                                                                                                                                            |
 | Yedeğin saklandığı konum / Backup storage location                     | Case çalışma ortamında proje kökü altındaki `backups/sample-training-backup/` klasörü.                                                                                                                                                                                                                                                               |
 | Yedek formatı / Backup format                       | MongoDB BSON dump formatı ve collection metadata dosyaları kullanılmıştır. Backup içerisinde `records.bson`, `github_repositories.bson` ve ilgili metadata dosyaları bulunmaktadır.                                                                                                                                                                  |
-| Sıklık / Frequency                                                     | Bu case kapsamında manuel olarak alınmıştır. Production ortamı için zamanlanmış günlük veya daha sık backup önerilmektedir.                                                                                                                                                                                                                          |
+| Sıklık / Frequency                                                     | Bu case kapsamında manuel olarak alınmıştır. Repository'de tekrarlanabilir backup/restore script'i bulunmaktadır, ancak otomatik backup schedule ve retention mekanizması uygulanmamıştır. Production ortamı için zamanlanmış günlük veya daha sık backup önerilmektedir.                                                                                                                                                                                                                          |
 | Retention süresi / Retention period                                    | Case çalışma ortamında belirlenmiş otomatik retention mekanizması bulunmamaktadır. Production ortamında en az 7 günlük veya iş gereksinimine göre daha uzun bir retention politikası uygulanmalıdır.                                                                                                                                                 |
 | Erişim ve güvenlik / Access and security           | MongoDB bağlantı bilgileri backup komutuna repository içerisinden sabit olarak yazılmamış, yerel `.env` değişkeninden okunmuştur. Backup dosyaları repository'ye eklenmemekte ve `backups/` `.gitignore` tarafından hariç tutulmaktadır. Production ortamında backup dosyaları erişim kontrollü ve şifreli bir harici storage üzerinde tutulmalıdır. |
 
@@ -25,7 +25,13 @@ Bu runbook, MongoDB Atlas üzerinde kullanılan `sample_training` database'inin 
 
 ## 3. Yedek alma adımları / Backup procedure
 
-MongoDB Database Tools kullanılarak `sample_training` database'inin tamamı yedeklenmiştir.
+MongoDB Database Tools `mongodump` kullanılmıştır. Backup işlemi doğrudan aşağıdaki repository script'i ile de çalıştırılabilir:
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Backup
+```
+
+Script, `mongodump` komutunu gerekli parametrelerle çalıştırmaktadır. Aşağıdaki manual command chain yalnızca kullanılan yöntemi açıkça dokümante etmek amacıyla verilmiştir.
 
 Öncelikle yerel `.env` dosyasındaki `ATLAS_URI` değeri PowerShell değişkenine alınmıştır:
 
@@ -70,7 +76,19 @@ backups/
 
 ## 4. Geri yükleme adımları / Restore procedure
 
-Database silindikten sonra aynı backup kullanılarak `mongorestore` ile geri yükleme gerçekleştirilmiştir.
+Restore işlemi repository içerisindeki script ile de çalıştırılabilir:
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Restore
+```
+
+Mevcut collection'ların üzerine restore edilmesi gerektiğinde:
+
+```powershell
+.\scripts\backup-restore.ps1 -Action Restore -DropExisting
+```
+
+Database silindikten sonra aynı backup kullanılarak `mongorestore` ile geri yükleme gerçekleştirilmiştir. Aşağıdaki manual command chain kullanılan yöntemi açıkça göstermek amacıyla verilmiştir.
 
 ```powershell
 & "C:\Program Files\MongoDB\Tools\100\bin\mongorestore.exe" `
@@ -98,6 +116,8 @@ Backup'ın eksik veya bozuk olmadığını doğrulamak için:
 3. `sample_training` database'i tamamen silindikten sonra uygulama ve MongoDB Atlas üzerinden verilerin kaybolduğu doğrulanmıştır.
 4. `mongorestore` sonrasında her iki collection'ın başarıyla restore edildiği ve `0 document(s) failed to restore` sonucu alındığı doğrulanmıştır.
 5. Restore sonrasında MongoDB Atlas ve web arayüzü üzerinden kayıtların tekrar erişilebilir olduğu doğrulanmıştır.
+6. Repository içerisinde bulunan `scripts/backup-restore.ps1` script'i ile backup işlemi başarıyla çalıştırılmıştır.
+7. `scripts/backup-restore.ps1 -Action Restore -DropExisting` komutu başarıyla test edilmiş ve mevcut collection'ların backup üzerinden yeniden oluşturulduğu doğrulanmıştır.
 
 ## 6. Uçtan uca test sonucu / End-to-end test result
 
@@ -114,7 +134,7 @@ Senaryo 9 Eylül 2026 tarihinde gerçekleştirilmiştir.
 
 ## 7. Bilinen sınırlamalar / Known limitations
 
-Bu case kapsamında backup işlemi manuel olarak gerçekleştirilmiş ve backup dosyaları local filesystem üzerinde tutulmuştur.
+Bu case kapsamında gerçek backup/restore E2E testi manuel olarak gerçekleştirilmiştir. Repository'de backup ve restore işlemlerini tekrarlanabilir şekilde çalıştırmak için `scripts/backup-restore.ps1` script'i bulunmaktadır; ancak otomatik zamanlama ve retention mekanizması uygulanmamıştır.
 
 Production ortamında:
 
