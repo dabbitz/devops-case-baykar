@@ -1,6 +1,6 @@
 # Backup & Restore Runbook
 
-Bu runbook, MongoDB Atlas üzerinde kullanılan `sample_training` database'inin yedeklenmesi ve geri yüklenmesi için kullanılan yöntemi ve gerçekleştirilen uçtan uca doğrulama senaryosunu açıklamaktadır.
+Bu runbook, MongoDB Atlas üzerinde kullanılan `sample_training` database'inin yedeklenmesi ve geri yüklenmesi için kullanılan yöntemi ve gerçekleştirilen detaylı doğrulama senaryosunu açıklamaktadır.
 
 ---
 
@@ -11,7 +11,7 @@ Bu runbook, MongoDB Atlas üzerinde kullanılan `sample_training` database'inin 
 | Yedekleme yöntemi / Backup method                                      | MongoDB Database Tools `mongodump` kullanılarak `sample_training` database'inin tamamı yedeklenmiştir.                                                                                                                                                                                                                                               |
 | Nasıl çalıştırılıyor / Execution method (script, Job, CronJob, manuel) | Bu case kapsamında manuel PowerShell komutu ile çalıştırılmıştır. Production ortamında zamanlanmış ve otomatik bir backup mekanizması tercih edilmelidir.                                                                                                                                                                                            |
 | Yedeğin saklandığı konum / Backup storage location                     | Case çalışma ortamında proje kökü altındaki `backups/sample-training-backup/` klasörü.                                                                                                                                                                                                                                                               |
-| Yedek formatı ve boyutu / Backup format and size                       | MongoDB BSON dump formatı ve collection metadata dosyaları kullanılmıştır. Backup içerisinde `records.bson`, `github_repositories.bson` ve ilgili metadata dosyaları bulunmaktadır.                                                                                                                                                                  |
+| Yedek formatı / Backup format                       | MongoDB BSON dump formatı ve collection metadata dosyaları kullanılmıştır. Backup içerisinde `records.bson`, `github_repositories.bson` ve ilgili metadata dosyaları bulunmaktadır.                                                                                                                                                                  |
 | Sıklık / Frequency                                                     | Bu case kapsamında manuel olarak alınmıştır. Production ortamı için zamanlanmış günlük veya daha sık backup önerilmektedir.                                                                                                                                                                                                                          |
 | Retention süresi / Retention period                                    | Case çalışma ortamında belirlenmiş otomatik retention mekanizması bulunmamaktadır. Production ortamında en az 7 günlük veya iş gereksinimine göre daha uzun bir retention politikası uygulanmalıdır.                                                                                                                                                 |
 | Şifreleme ve erişim kontrolü / Encryption and access control           | MongoDB bağlantı bilgileri backup komutuna repository içerisinden sabit olarak yazılmamış, yerel `.env` değişkeninden okunmuştur. Backup dosyaları repository'ye eklenmemekte ve `backups/` `.gitignore` tarafından hariç tutulmaktadır. Production ortamında backup dosyaları erişim kontrollü ve şifreli bir harici storage üzerinde tutulmalıdır. |
@@ -105,12 +105,12 @@ Senaryo 9 Eylül 2026 tarihinde gerçekleştirilmiştir.
 
 | # | Adım / Step                                      | Sonuç / Result                                                                | Kanıt / Evidence                              |
 | - | ------------------------------------------------ | ----------------------------------------------------------------------------- | --------------------------------------------- |
-| 1 | Kayıt oluşturuldu / Record created               | Başarılı. Atlas database'de kayıt mevcut durumda doğrulandı.                 | `docs/screenshots/16-backup-record-created-01.png`       |
-| 2 | Yedek alındı / Backup taken                      | Başarılı. `sample_training` database'inin tamamı `mongodump` ile yedeklendi.  | `docs/screenshots/18-backup-taken.png`         |
-| 3 | Collection/DB silindi / Collection or DB dropped | Başarılı. `sample_training` database'i Atlas üzerinden silindi.               | `docs/screenshots/19-collection-dropped.png`      |
-| 4 | Verinin kaybolduğu görüldü / Data confirmed gone | Başarılı. Database ve uygulama kayıtlarının kaybolduğu doğrulandı.            | `docs/screenshots/21-data-missing-after-drop-database.png` |
-| 5 | Yedekten geri yüklendi / Restored from backup    | Başarılı. 2 document, 0 failure ile restore tamamlandı.                       | `docs/screenshots/22-restore-executed.png`      |
-| 6 | Veri geri geldi / Data confirmed back            | Başarılı. MongoDB Atlas ve web arayüzünde kayıtların geri geldiği doğrulandı. | `docs/screenshots/24-data-restored-verified-database.png`, `docs/screenshots/23-data-restored-verified-ui.png`     |
+| 1 | Kayıt oluşturuldu / Record created               | Başarılı. Atlas database'de kayıt mevcut durumda doğrulandı.                 | `docs/screenshots/29-backup-record-created-01.png` ve `docs/screenshots/30-backup-record-created-02.png`      |
+| 2 | Yedek alındı / Backup taken                      | Başarılı. `sample_training` database'inin tamamı `mongodump` ile yedeklendi.  | `docs/screenshots/31-backup-taken.png`         |
+| 3 | Collection/DB silindi / Collection or DB dropped | Başarılı. `sample_training` database'i Atlas üzerinden silindi.               | `docs/screenshots/32-collection-dropped.png`      |
+| 4 | Verinin kaybolduğu görüldü / Data confirmed gone | Başarılı. Database ve uygulama kayıtlarının kaybolduğu doğrulandı.            | `docs/screenshots/33-data-missing-after-drop-ui.png` ve `docs/screenshots/34-data-missing-after-drop-database.png` |
+| 5 | Yedekten geri yüklendi / Restored from backup    | Başarılı. 2 document, 0 failure ile restore tamamlandı.                       | `docs/screenshots/35-restore-executed.png`      |
+| 6 | Veri geri geldi / Data confirmed back            | Başarılı. MongoDB Atlas ve web arayüzünde kayıtların geri geldiği doğrulandı. | `docs/screenshots/36-data-restored-verified-ui.png`, `docs/screenshots/37-data-restored-verified-database-01.png` ve `docs/screenshots/38-data-restored-verified-database-02.png`      |
 
 ## 7. Bilinen sınırlamalar / Known limitations
 
@@ -118,10 +118,10 @@ Bu case kapsamında backup işlemi manuel olarak gerçekleştirilmiş ve backup 
 
 Production ortamında:
 
-* Backup işlemi zamanlanmış bir Job/CronJob veya managed backup mekanizması ile otomatikleştirilmelidir.
-* Backup'lar uygulama veya cluster ortamından bağımsız bir object storage veya başka bir dayanıklı storage üzerinde tutulmalıdır.
-* Backup retention politikası otomatik olarak uygulanmalıdır.
-* Backup dosyaları şifreli şekilde saklanmalı ve yalnızca gerekli yetkilere sahip servis veya kullanıcıların erişimine izin verilmelidir.
-* Düzenli backup integrity ve restore testleri gerçekleştirilmelidir.
-* Daha düşük RPO gereksinimi olan sistemlerde günlük backup yerine daha sık backup veya point-in-time recovery yaklaşımı değerlendirilmelidir.
-* Restore sürecinin tamamı periyodik olarak test edilerek gerçek RTO ölçülmelidir.
+- Backup işlemi zamanlanmış bir Job/CronJob veya managed backup mekanizması ile otomatikleştirilmelidir.
+- Backup'lar uygulama veya cluster ortamından bağımsız bir object storage veya başka bir dayanıklı storage üzerinde tutulmalıdır.
+- Backup retention politikası otomatik olarak uygulanmalıdır.
+- Backup dosyaları şifreli şekilde saklanmalı ve yalnızca gerekli yetkilere sahip servis veya kullanıcıların erişimine izin verilmelidir (Github'a backup dosyaları push edilmemiştir, dolayısı ile bu dokümanda bahsedilen dosya yolu, verilen proje klasöründe bulunmaz).
+- Düzenli backup integrity ve restore testleri gerçekleştirilmelidir.
+- Daha düşük RPO gereksinimi olan sistemlerde günlük backup yerine daha sık backup veya point-in-time recovery yaklaşımı değerlendirilmelidir.
+- Restore sürecinin tamamı periyodik olarak test edilerek gerçek RTO ölçülmelidir.

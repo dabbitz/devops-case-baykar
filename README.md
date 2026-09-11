@@ -17,6 +17,16 @@ DevOps_Case_Final/
 │   └── findings.md                   # Uygulama ilk açıldığında bulunan hatalar
 │
 ├── k8s/
+│   └── eks/
+│   │   ├── backend-deployment.yaml   # EKS backend Deployment
+│   │   ├── backend-service.yaml      # EKS backend ClusterIP Service
+│   │   ├── cd-rbac.yaml              # GitHub Actions Kubernetes RBAC
+│   │   ├── etl-cronjob.yaml          # EKS saatlik Python ETL CronJob
+│   │   ├── frontend-deployment.yaml  # EKS frontend Deployment
+│   │   ├── frontend-service.yaml     # EKS frontend ClusterIP Service
+│   │   ├── gateway.yaml              # EKS Envoy Gateway
+│   │   ├── gatewayclass.yaml         # EKS Envoy GatewayClass
+│   │   └── http-route.yaml           # EKS HTTPRoute
 │   ├── backend-deployment.yaml       # Local Kubernetes backend Deployment
 │   ├── backend-service.yaml          # Local Kubernetes backend ClusterIP Service
 │   ├── ci-mongodb.yaml               # CI/CD için geçici MongoDB
@@ -26,23 +36,15 @@ DevOps_Case_Final/
 │   ├── gateway.yaml                  # Envoy Gateway
 │   ├── gatewayclass.yaml             # Envoy GatewayClass
 │   ├── http-route.yaml               # HTTPRoute
-│   ├── namespace.yaml                # Local Kubernetes namespace
-│   └── eks/
-│       ├── backend-deployment.yaml   # EKS backend Deployment
-│       ├── backend-service.yaml      # EKS backend ClusterIP Service
-│       ├── cd-rbac.yaml              # GitHub Actions Kubernetes RBAC
-│       ├── etl-cronjob.yaml          # EKS saatlik Python ETL CronJob
-│       ├── frontend-deployment.yaml  # EKS frontend Deployment
-│       ├── frontend-service.yaml     # EKS frontend ClusterIP Service
-│       ├── gateway.yaml              # EKS Envoy Gateway
-│       ├── gatewayclass.yaml         # EKS Envoy GatewayClass
-│       └── http-route.yaml           # EKS HTTPRoute
+│   └── namespace.yaml                # Local Kubernetes namespace
 │
 ├── mern-project/
 │   ├── client/                       # React frontend
-│   └── server/                       # Express.js backend
+│   ├── server/                       # Express.js backend
+│   └── .gitignore                    # mern-project klasörünün .gitignore dosyası
 │
 ├── python-project/
+│   ├── .dockerignore                 # python-project klasörünün .dockerignore dosyası
 │   ├── Dockerfile                    # ETL container image
 │   ├── ETL.py                        # Güncel ETL implementation
 │   ├── README.md                     # ETL başlangıç açıklamaları
@@ -51,18 +53,18 @@ DevOps_Case_Final/
 ├── scripts/
 │   └── check-alerts.ps1              # Kritik alarm kontrolleri
 │
-├── .gitignore
-├── CASE_END_ANSWERS.md                # İngilizce case cevapları
-├── CASE_SONU_CEVAPLARI.md             # Case sonu cevapları
-├── DevOps_Technical_Case_EN.docx      # İngilizce case dokümanı
-├── DevOps_Teknik_Case_TR.docx         # Türkçe case dokümanı
+├── .gitignore                        # Projenin .gitignore dosyası
+├── CASE_END_ANSWERS.md               # İngilizce case sonu cevapları
+├── CASE_SONU_CEVAPLARI.md            # Case sonu cevapları
+├── DevOps_Technical_Case_EN.docx     # İngilizce case dokümanı
+├── DevOps_Teknik_Case_TR.docx        # Türkçe case dokümanı
 ├── docker-compose.yml                # Local Docker Compose ortamı
 ├── eks-cluster.yaml                  # AWS EKS cluster ve node group yapılandırması
-├── README_EN.md                        # İngilizce README
-├── README.md                           # Proje ve çalıştırma dokümantasyonu
+├── README_EN.md                      # İngilizce README
+├── README.md                         # Proje ve çalıştırma dokümantasyonu
 ├── setup-k8s.ps1                     # Local Kubernetes kurulum/doğrulama script'i
-├── SUBMISSION_EVIDENCE.md             # İngilizce teslim kanıtları
-└── TESLIM_KANITLARI.md                # Çalışma kanıtları
+├── SUBMISSION_EVIDENCE.md            # İngilizce teslim kanıtları
+└── TESLIM_KANITLARI.md               # Teslim kanıtları
 ```
 
 ## Mevcut AWS EKS Deployment
@@ -166,46 +168,46 @@ Ayrıntılı mimari diyagram ve bileşen açıklamaları:
 
 ## Teknolojiler
 
-* React
-* Node.js / Express
-* MongoDB Atlas
-* Python
-* Docker / Docker Compose
-* Kubernetes
-* AWS EKS
-* Amazon ECR
-* AWS IAM
-* GitHub Actions
-* GitHub OIDC
-* Kubernetes RBAC
-* Envoy Gateway
-* Helm
-* Kind
+- React
+- Node.js / Express
+- MongoDB Atlas
+- Python
+- Docker / Docker Compose
+- Kubernetes
+- AWS EKS
+- Amazon ECR
+- AWS IAM
+- GitHub Actions
+- GitHub OIDC
+- Kubernetes RBAC
+- Envoy Gateway
+- Helm
+- Kind
 
 ## Gereksinimler
 
 AWS üzerinde çalışan mevcut deployment'ı kullanmak için temel olarak:
 
-* AWS hesabı ve gerekli yetkiler
-* GitHub repository erişimi
+- AWS hesabı ve gerekli yetkiler
+- GitHub repository erişimi
 
 gereklidir.
 
 Local çalıştırma veya geliştirme için ayrıca:
 
-* Docker Desktop
-* Docker Compose
-* Node.js 20+
-* Python 3.10+
-* `kubectl`
-* Helm
+- Docker Desktop
+- Docker Compose
+- Node.js 20+
+- Python 3.10+
+- `kubectl`
+- Helm
 
 kullanılabilir.
 
 AWS EKS yönetimi ve infrastructure işlemleri için ayrıca:
 
-* AWS CLI
-* `eksctl`
+- AWS CLI
+- `eksctl`
 
 kullanılabilir.
 
@@ -769,7 +771,7 @@ Bu yapı deployment edilen image sürümünün ilgili source commit ile doğruda
 
 MongoDB backup için `mongodump`, restore için `mongorestore` kullanılmıştır.
 
-Backup konumu:
+Backup konumu (repository'de gözükmez çünkü .gitignore'dadır):
 
 ```text
 backups/sample-training-backup/
@@ -799,8 +801,8 @@ scripts/check-alerts.ps1
 
 script'i iki kritik alarm senaryosunu kontrol etmektedir:
 
-* ETL başarısızlığı veya beklenen sürede başarılı ETL çalışmasının bulunmaması
-* Frontend veya backend health endpoint'lerinin erişilememesi
+- ETL başarısızlığı veya beklenen sürede başarılı ETL çalışmasının bulunmaması
+- Frontend veya backend health endpoint'lerinin erişilememesi
 
 Test modu ile alarm senaryoları doğrulanabilmektedir.
 
@@ -814,20 +816,20 @@ dosyasında açıklanmıştır.
 
 Başlıca iyileştirmeler:
 
-* Frontend API adresinin environment/config üzerinden yönetilmesi
-* Backend input validation
-* ObjectId validation
-* Database connection error handling
-* CORS restriction
-* HTTP error handling
-* Non-root container kullanımı
-* Kubernetes securityContext
-* ETL duplicate prevention
-* CI/CD validation ve deployment kontrolü
-* AWS EKS deployment
-* Amazon ECR image management
-* GitHub OIDC authentication
-* Namespace-scoped Kubernetes RBAC
+- Frontend API adresinin environment/config üzerinden yönetilmesi
+- Backend input validation
+- ObjectId validation
+- Database connection error handling
+- CORS restriction
+- HTTP error handling
+- Non-root container kullanımı
+- Kubernetes securityContext
+- ETL duplicate prevention
+- CI/CD validation ve deployment kontrolü
+- AWS EKS deployment
+- Amazon ECR image management
+- GitHub OIDC authentication
+- Namespace-scoped Kubernetes RBAC
 
 ## Rollback
 

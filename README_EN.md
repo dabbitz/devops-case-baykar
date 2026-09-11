@@ -1,6 +1,6 @@
 # 2NTECH DevOps Technical Case
 
-This repository contains the MERN application, Python ETL workload, Docker containers, Kubernetes deployment, CI/CD pipeline, and backup/restore work completed as part of the 2NTECH DevOps Technical Case.
+This repository contains the MERN application, Python ETL workload, Docker containers, Kubernetes deployments, AWS EKS environment, Amazon ECR repositories, CI/CD pipeline, and backup/restore work developed as part of the 2NTECH DevOps Technical Case.
 
 ## Project Structure
 
@@ -8,78 +8,158 @@ This repository contains the MERN application, Python ETL workload, Docker conta
 DevOps_Case_Final/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                    # GitHub Actions CI/CD pipeline
-│
-├── backups/                          # Local backup outputs
+│       └── ci.yml                   # GitHub Actions CI/CD pipeline
 │
 ├── docs/
-│   ├── screenshots/                  # Work evidence
-│   ├── architecture.md               # System architecture and request flow
-│   ├── backup-restore.md             # Backup/restore runbook
-│   └── findings.md                   # Errors found when the app was first opened
+│   ├── screenshots/                 # Evidence screenshots
+│   ├── architecture.md              # System architecture and request flow
+│   ├── backup-restore.md            # Backup/restore runbook
+│   └── findings.md                  # Issues identified in the initial application
 │
 ├── k8s/
-│   ├── namespace.yaml                # Kubernetes namespace
-│   ├── backend-deployment.yaml       # Backend Deployment
-│   ├── backend-service.yaml          # Backend ClusterIP Service
-│   ├── frontend-deployment.yaml      # Frontend Deployment
-│   ├── frontend-service.yaml         # Frontend ClusterIP Service
-│   ├── etl-cronjob.yaml              # Hourly Python ETL CronJob
-│   ├── ci-mongodb.yaml               # Temporary MongoDB for CI/CD
-│   ├── gatewayclass.yaml             # Envoy GatewayClass
-│   ├── gateway.yaml                  # Envoy Gateway
-│   └── http-route.yaml               # HTTPRoute
+│   └── eks/
+│   │   ├── backend-deployment.yaml  # EKS backend Deployment
+│   │   ├── backend-service.yaml     # EKS backend ClusterIP Service
+│   │   ├── cd-rbac.yaml             # GitHub Actions Kubernetes RBAC
+│   │   ├── etl-cronjob.yaml         # EKS hourly Python ETL CronJob
+│   │   ├── frontend-deployment.yaml # EKS frontend Deployment
+│   │   ├── frontend-service.yaml    # EKS frontend ClusterIP Service
+│   │   ├── gateway.yaml             # EKS Envoy Gateway
+│   │   ├── gatewayclass.yaml        # EKS Envoy GatewayClass
+│   │   └── http-route.yaml          # EKS HTTPRoute
+│   ├── backend-deployment.yaml      # Local Kubernetes backend Deployment
+│   ├── backend-service.yaml         # Local Kubernetes backend ClusterIP Service
+│   ├── ci-mongodb.yaml              # Temporary MongoDB for CI/CD
+│   ├── etl-cronjob.yaml             # Local Kubernetes hourly Python ETL CronJob
+│   ├── frontend-deployment.yaml     # Local Kubernetes frontend Deployment
+│   ├── frontend-service.yaml        # Local Kubernetes frontend ClusterIP Service
+│   ├── gateway.yaml                 # Envoy Gateway
+│   ├── gatewayclass.yaml            # Envoy GatewayClass
+│   ├── http-route.yaml              # HTTPRoute
+│   └── namespace.yaml               # Local Kubernetes namespace
 │
 ├── mern-project/
-│   ├── client/                       # React frontend
-│   └── server/                       # Express.js backend
+│   ├── client/                      # React frontend
+│   ├── server/                      # Express.js backend
+│   └── .gitignore                   # .gitignore file for the mern-project folder
 │
 ├── python-project/
-│   ├── Dockerfile                    # ETL container image
-│   ├── ETL.py                        # Current ETL implementation
-│   ├── requirements.txt              # Python dependencies
-│   └── README.md                     # Initial ETL documentation
+│   ├── .dockerignore                # .dockerignore file for the python-project folder
+│   ├── Dockerfile                   # ETL container image
+│   ├── ETL.py                       # Current ETL implementation
+│   ├── README.md                    # ETL introductory documentation
+│   └── requirements.txt             # Python dependencies
 │
 ├── scripts/
-│   └── check-alerts.ps1              # Critical alert checks
+│   └── check-alerts.ps1             # Critical alert checks
 │
-├── .env                              # Local environment/config
-├── .gitignore
-├── docker-compose.yml                # Local Docker Compose environment
-├── setup-k8s.ps1                     # Kubernetes setup/verification script
-├── CASE_SONU_CEVAPLARI.md            # Case completion answers
-├── CASE_END_ANSWERS.md               # English case answers
-├── TESLIM_KANITLARI.md               # Work evidence
-├── SUBMISSION_EVIDENCE.md            # English submission evidence
-├── DevOps_Teknik_Case_TR.docx        # Turkish case document
-├── DevOps_Technical_Case_EN.docx     # English case document
-├── README.md                         # Project and usage documentation
-└── README_EN.md                      # English README
+├── .gitignore                       # .gitignore file of the project
+├── CASE_END_ANSWERS.md              # English case answers
+├── CASE_SONU_CEVAPLARI.md           # Turkish case answers
+├── DevOps_Technical_Case_EN.docx    # English case document
+├── DevOps_Teknik_Case_TR.docx       # Turkish case document
+├── docker-compose.yml               # Local Docker Compose environment
+├── eks-cluster.yaml                 # AWS EKS cluster and node group configuration
+├── README_EN.md                     # English project and execution documentation
+├── README.md                        # Turkish project and execution documentation
+├── setup-k8s.ps1                    # Local Kubernetes setup/verification script
+├── SUBMISSION_EVIDENCE.md           # English submission evidence
+└── TESLIM_KANITLARI.md              # Turkish submission evidence
 ```
+
+## Current AWS EKS Deployment
+
+The **current AWS EKS deployment used during this work** is directly accessible through the following addresses:
+
+**Application:**
+
+```text
+http://[REDACTED].eu-central-1.elb.amazonaws.com/
+```
+
+**Records:**
+
+```text
+http://[REDACTED].eu-central-1.elb.amazonaws.com/records
+```
+
+**Backend healthcheck:**
+
+```text
+http://[REDACTED].eu-central-1.elb.amazonaws.com/api/healthcheck
+```
+
+> **Important:** The addresses above belong to the AWS Load Balancer created for the current deployment during this work. They **must not be considered permanent production URLs**. In particular, if the EKS cluster, Envoy Gateway, or Load Balancer is recreated, AWS may assign a new hostname. In addition, the addresses may no longer be accessible after submission if the AWS resources used for this deployment are removed.
+
+### Finding the Current EKS Access Address
+
+The current hostname assigned by the AWS Load Balancer can be obtained from the Kubernetes Service output in the terminal.
+
+First, list the Envoy Gateway Services:
+
+```powershell
+kubectl get svc -n envoy-gateway-system
+```
+
+In the output, find the Envoy Gateway Service whose `TYPE` is `LoadBalancer`. The `EXTERNAL-IP` field in that row contains the current Load Balancer hostname assigned by AWS.
+
+For example:
+
+```text
+NAME                                      TYPE           CLUSTER-IP      EXTERNAL-IP
+envoy-devops-case-devops-gateway-...     LoadBalancer   10.x.x.x        <AWS Load Balancer hostname>
+```
+
+To view the current hostname in more detail:
+
+```powershell
+kubectl get svc -n envoy-gateway-system -o wide
+```
+
+The `<AWS Load Balancer hostname>` value can then be used to construct the application addresses as follows:
+
+```text
+http://<EXTERNAL-IP>/
+http://<EXTERNAL-IP>/records
+http://<EXTERNAL-IP>/api/healthcheck
+```
+
+Therefore, if the hostname listed in this README is no longer valid, check the current `EXTERNAL-IP` value from the Kubernetes Service before attempting to access the application.
 
 ## System Architecture
 
-The application consists of the following main components:
+The main request flow of the application on AWS EKS is as follows:
 
 ```text
 User / Browser
         ↓
+AWS Elastic Load Balancer
+        ↓
 Envoy Gateway
         ↓
 HTTPRoute
-        ↓
-Frontend Service
-        ↓
-React + NGINX
-        ↓
-Backend Service
-        ↓
-Node.js + Express
-        ↓
+   ┌────┴────┐
+   ↓         ↓
+Frontend   Backend
+Service    Service
+   ↓         ↓
+React      Node.js
++ NGINX    + Express
+              ↓
+          MongoDB Atlas
+```
+
+The Python ETL runs as a separate workflow, retrieving repository information from the GitHub API and updating the `github_repositories` collection in MongoDB:
+
+```text
+GitHub API
+    ↓
+Python ETL
+    ↓
 MongoDB Atlas
 ```
 
-The Python ETL retrieves repository information from the GitHub API and updates the `github_repositories` collection in MongoDB.
+In the local Kubernetes environment, the application can be accessed through the local Envoy Gateway instead of the AWS Elastic Load Balancer.
 
 Detailed architecture diagram and component descriptions:
 
@@ -93,14 +173,24 @@ Detailed architecture diagram and component descriptions:
 * Python
 * Docker / Docker Compose
 * Kubernetes
+* AWS EKS
+* Amazon ECR
+* AWS IAM
+* GitHub Actions
+* GitHub OIDC
+* Kubernetes RBAC
 * Envoy Gateway
 * Helm
-* GitHub Actions
 * Kind
 
 ## Requirements
 
-The following tools must be installed for local execution:
+To use the existing deployment running on AWS, the following are required:
+
+* An AWS account with the necessary permissions
+* Access to the GitHub repository
+
+For local execution or development, the following can additionally be used:
 
 * Docker Desktop
 * Docker Compose
@@ -109,13 +199,16 @@ The following tools must be installed for local execution:
 * `kubectl`
 * Helm
 
-For Kubernetes execution, Docker Desktop Kubernetes or another suitable Kubernetes cluster can be used.
+For AWS EKS management and infrastructure operations:
+
+* AWS CLI
+* `eksctl`
 
 ## Configuration
 
-Secrets or connection information are not hardcoded in the source code.
+Secrets and connection information are not hardcoded in the source code.
 
-After cloning the repository, several values specific to the execution environment must be prepared by the user. These values are particularly required for MongoDB Atlas and GitHub API access.
+For cloud deployment, sensitive values are transferred from GitHub Actions Secrets to Kubernetes Secret resources. For local execution, a `.env` file is used.
 
 ### 1. MongoDB Atlas Setup
 
@@ -127,17 +220,17 @@ In your own MongoDB Atlas account:
 2. Use a database named `sample_training`.
 3. Allow the `records` collection used by the backend to be created.
 4. Create the `github_repositories` collection used by the ETL, or allow it to be created during the first ETL execution.
-5. Make sure the IP address you will use is allowed in the MongoDB Atlas Network Access section.
+5. Make sure the IP address you will use is allowed in MongoDB Atlas Network Access.
 6. Create an appropriate database user and grant the required permissions.
 7. Obtain the connection URI.
 
-> Because MongoDB Atlas is used in the production-style application deployment, the database and collection names must match the usage in the project code and the environment variables below.
+> Because the application uses MongoDB Atlas in the production environment, the database and collection names must remain consistent with the environment variables and the values used by the project code.
 
 ### 2. GitHub API Setup
 
 The Python ETL retrieves repository information through the GitHub API.
 
-If you are using your own GitHub repository, change the following values accordingly:
+If you want to use your own GitHub repository, update the following values accordingly:
 
 ```text
 GITHUB_OWNER=<GitHub user or organization name>
@@ -145,21 +238,19 @@ GITHUB_REPO=<repository name>
 GITHUB_TOKEN=<GitHub Personal Access Token>
 ```
 
-The token should contain only the GitHub API permissions that are required.
+The token should contain only the GitHub API permissions that are actually required.
 
 ### 3. Creating the `.env` File
 
-Create a `.env` file in the project root.
+For local execution, create a file named `.env` in the project root.
 
-Example structure:
+Example:
 
 ```text
 ATLAS_URI=<MongoDB Atlas connection string>
-
 GITHUB_OWNER=<GitHub owner>
 GITHUB_REPO=<GitHub repository>
 GITHUB_TOKEN=<GitHub token>
-
 MONGODB_DB=sample_training
 MONGODB_URI=<MongoDB connection string>
 MONGODB_COLLECTION=github_repositories
@@ -167,11 +258,11 @@ MONGODB_COLLECTION=github_repositories
 
 `ATLAS_URI` is used by the backend, while `MONGODB_URI`, `MONGODB_DB`, and `MONGODB_COLLECTION` are used by the Python ETL.
 
-Do not write real credentials, tokens, or connection string values into the source code, and do not commit them to the Git repository.
+Do not write real credentials, tokens, or connection strings into the source code or commit them to the Git repository.
 
-### 4. Pay Attention to Name Consistency
+### 4. Pay Attention to Naming Consistency
 
-During setup, the following names must be consistent with the code and configuration:
+During setup, the following names must remain consistent with the code and configuration:
 
 | Field                | Usage                      |
 | -------------------- | -------------------------- |
@@ -182,75 +273,88 @@ During setup, the following names must be consistent with the code and configura
 | `ATLAS_URI`          | Backend MongoDB connection |
 | `MONGODB_URI`        | ETL MongoDB connection     |
 
-`GITHUB_OWNER` and `GITHUB_REPO` can be changed. However, when using a different repository, a GitHub token with access to that repository must be provided.
+`GITHUB_OWNER` and `GITHUB_REPO` can be changed. However, when using a different repository, a GitHub token with access to that repository must be provided to the ETL.
 
 ### 5. Kubernetes Secrets
 
-The `setup-k8s.ps1` script reads the sensitive values from `.env` and creates the required Kubernetes Secret resources.
+For local Kubernetes deployment, the `setup-k8s.ps1` script reads sensitive values from `.env` and creates the required Kubernetes Secret resources.
 
-Therefore, the `.env` file must be prepared before Kubernetes deployment.
+For AWS EKS deployment, Secret values are obtained from GitHub Actions Secrets and transferred to Kubernetes Secret resources in the EKS namespace.
 
-The script is designed to use secret values without printing them to the screen.
+Secret values are not hardcoded into the workflow file or source code.
 
 ---
 
 ## Initial Setup
 
-The recommended order after cloning the repository is:
+The primary deployment environment of the project is AWS EKS. The repository defines the AWS EKS cluster, ECR image repositories, and GitHub Actions-based CI/CD deployment structure.
+
+The basic flow for the existing cloud deployment is:
 
 ```text
-Clone the repository
+Repository
         ↓
-Install required tools
+MongoDB Atlas setup
         ↓
-Prepare MongoDB Atlas
+GitHub Actions Secrets
         ↓
-Create GitHub API token
+Push to main branch
         ↓
-Create the .env file
+CI validation
         ↓
-Enable Docker Desktop Kubernetes
+GitHub OIDC
         ↓
-Run setup-k8s.ps1
+AWS IAM Role
         ↓
-Verify Kubernetes workloads
+Amazon ECR
         ↓
-Test frontend / backend endpoints
+AWS EKS
         ↓
-Check ETL Job / CronJob logs
+Frontend / Backend / ETL
 ```
 
-For Kubernetes setup:
+AWS EKS cluster configuration:
 
-```powershell
-.\setup-k8s.ps1
+```text
+Cluster:
+devops-case-eks
+
+Region:
+eu-central-1
+
+Managed node group:
+devops-workers
+
+Node instance type:
+t3.small
 ```
 
-After setup is complete:
+The manifests used for the EKS deployment are located under:
+
+```text
+k8s/eks/
+```
+
+To inspect the AWS EKS environment:
 
 ```powershell
+eksctl get cluster --region eu-central-1
+kubectl get nodes -o wide
 kubectl get pods -n devops-case
-kubectl get services -n devops-case
+kubectl get deployments -n devops-case
 kubectl get cronjobs -n devops-case
+kubectl get services -n devops-case
 ```
 
-can be used to verify the workload status.
+External cloud access is provided through the AWS Elastic Load Balancer created by Envoy Gateway.
 
-Frontend:
+The local execution methods below can still be used when local development or testing is required.
 
-```text
-http://localhost/
-```
+---
 
-Backend healthcheck:
+## Alternative: Docker Compose
 
-```text
-http://localhost/api/healthcheck/
-```
-
-### Alternative: Docker Compose
-
-To validate the local container environment before using Kubernetes:
+To validate the local container environment without Kubernetes:
 
 ```powershell
 docker compose build
@@ -267,7 +371,7 @@ Backend:
 http://localhost:5050/healthcheck/
 ```
 
-The Compose environment can be stopped with:
+Stop the Compose environment with:
 
 ```powershell
 docker compose down
@@ -283,7 +387,7 @@ npm install
 npm start
 ```
 
-The frontend is available by default at:
+The frontend runs by default at:
 
 ```text
 http://localhost:3000
@@ -297,7 +401,7 @@ npm install
 npm start
 ```
 
-The backend is available at:
+The backend runs at:
 
 ```text
 http://localhost:5050
@@ -318,7 +422,7 @@ docker compose build
 docker compose up -d
 ```
 
-To check container status:
+Check container status:
 
 ```powershell
 docker compose ps
@@ -346,9 +450,9 @@ docker compose down
 
 ## Kubernetes Deployment
 
-The Kubernetes manifests are located in the `k8s/` directory.
+Local Kubernetes manifests are located in the `k8s/` directory.
 
-For automated setup:
+To perform the setup automatically:
 
 ```powershell
 .\setup-k8s.ps1
@@ -356,14 +460,14 @@ For automated setup:
 
 The script performs the following operations:
 
-1. Create namespace
+1. Create the namespace
 2. Create Kubernetes Secrets
 3. Build Docker images
-4. Import images into the Kubernetes environment
-5. Deploy frontend, backend, and ETL workloads
-6. Verify container security controls
+4. Transfer images to the Kubernetes environment
+5. Deploy the frontend, backend, and ETL workloads
+6. Verify container security settings
 7. Install Envoy Gateway
-8. Create Gateway and HTTPRoute
+8. Create the Gateway and HTTPRoute
 9. Verify endpoints
 
 Namespace:
@@ -372,7 +476,7 @@ Namespace:
 devops-case
 ```
 
-Workload verification:
+Workload checks:
 
 ```powershell
 kubectl get pods -n devops-case
@@ -392,6 +496,47 @@ Backend healthcheck:
 ```text
 http://localhost/api/healthcheck/
 ```
+
+## AWS EKS Deployment
+
+AWS EKS-specific Kubernetes manifests are located under:
+
+```text
+k8s/eks/
+```
+
+The EKS deployment consists of:
+
+```text
+Frontend → Deployment + ClusterIP Service
+Backend  → Deployment + ClusterIP Service
+ETL      → CronJob
+Gateway  → Envoy Gateway
+Routing  → HTTPRoute
+```
+
+Container images are pulled from Amazon ECR.
+
+To inspect workloads running on EKS:
+
+```powershell
+kubectl get pods -n devops-case -o wide
+kubectl get deployments -n devops-case
+kubectl get services -n devops-case
+kubectl get cronjobs -n devops-case
+kubectl get gateway -n devops-case
+kubectl get httproute -n devops-case
+```
+
+For external EKS access, requests to `/` are routed to the frontend and requests to `/api` are routed to the backend.
+
+Backend healthcheck:
+
+```text
+/api/healthcheck
+```
+
+This endpoint is accessible through the AWS Load Balancer.
 
 ## Kubernetes Workloads
 
@@ -419,7 +564,9 @@ ETL schedule:
 0 * * * *
 ```
 
-When the same repository is processed again, the ETL updates the existing record using the `github_id` field.
+The ETL runs hourly using the `Europe/Istanbul` timezone.
+
+When the same repository is processed again, the existing record is updated using the `github_id` field.
 
 ## Kubernetes Security
 
@@ -431,11 +578,13 @@ Frontend → nginx / UID 101
 ETL      → appuser / UID 10001
 ```
 
-The following controls are also applied to the Kubernetes workloads:
+The Kubernetes workloads also apply the following security settings:
 
 ```yaml
 runAsNonRoot: true
+
 allowPrivilegeEscalation: false
+
 capabilities:
   drop:
     - ALL
@@ -454,7 +603,7 @@ GitHub API
     ↓
 Python ETL
     ↓
-MongoDB
+MongoDB Atlas
 ```
 
 The ETL runs hourly on Kubernetes.
@@ -465,19 +614,20 @@ When the same repository is processed again:
 github_id = 1361100555
 ```
 
-is used to update the existing document and prevent duplicate records.
+is used to update the existing document without creating a duplicate record.
 
-The ETL logs include output such as:
+ETL logs contain entries such as:
 
 ```text
 UPDATE: repository updated
+Updated fields: ...
 MongoDB document count: 1
 ETL completed successfully.
 ```
 
 ## CI/CD
 
-CI/CD runs through GitHub Actions.
+CI/CD runs on GitHub Actions.
 
 Pipeline:
 
@@ -494,9 +644,13 @@ Docker image build
         ↓
 CI successful
         ↓
-Kind Kubernetes cluster
+GitHub OIDC
         ↓
-Image load
+AWS IAM Role
+        ↓
+Amazon ECR image push
+        ↓
+AWS EKS authentication
         ↓
 Kubernetes deployment
         ↓
@@ -507,35 +661,116 @@ Backend healthcheck
 Frontend HTTP check
 ```
 
-The deployment job runs only after the CI job completes successfully.
+When a Pull Request is opened, the `validate-and-build` job runs and deployment is not performed.
 
-For CI deployment validation, GitHub Actions creates a temporary Kind cluster. A temporary MongoDB container is also run in this environment for testing purposes.
+After a successful push to the `main` branch, the `deploy-eks` job runs.
 
-This MongoDB is used only for CI/CD validation. MongoDB Atlas is the data layer used in the normal application deployment.
+The deployment job:
+
+1. Assumes the AWS IAM Role through GitHub OIDC.
+2. Builds the frontend, backend, and ETL Docker images.
+3. Tags the images with the Git commit SHA.
+4. Pushes the images to Amazon ECR.
+5. Creates the kubeconfig for the EKS cluster.
+6. Updates the Kubernetes Secret resources.
+7. Applies the Service, Deployment, and CronJob resources under `k8s/eks/`.
+8. Updates the Deployment images to the commit SHA tags.
+9. Applies the Gateway and HTTPRoute resources.
+10. Checks the backend and frontend rollout status.
+11. Performs the backend healthcheck through the AWS Load Balancer.
+12. Verifies external frontend access.
+
+If a build or validation step in the CI stage fails, the `deploy-eks` job is not executed.
+
+## GitHub OIDC and AWS Authentication
+
+Long-lived AWS access keys are not used for GitHub Actions AWS access.
+
+Authentication flow:
+
+```text
+GitHub Actions
+      ↓
+GitHub OIDC token
+      ↓
+GitHubActions-EKS-Deploy IAM Role
+      ↓
+Temporary AWS credentials
+      ↓
+Amazon ECR + AWS EKS
+```
+
+The IAM Role uses an OIDC trust policy restricted to the GitHub repository and the `main` branch.
+
+## EKS RBAC
+
+The GitHub Actions IAM Role is mapped through an EKS Access Entry to the following Kubernetes group:
+
+```text
+github-actions-deploy
+```
+
+A Kubernetes `Role` and `RoleBinding` limited to the:
+
+```text
+devops-case
+```
+
+namespace are defined for this group.
+
+GitHub Actions is not granted `cluster-admin` privileges.
+
+RBAC definition:
+
+```text
+k8s/eks/cd-rbac.yaml
+```
+
+## Amazon ECR
+
+The CI/CD pipeline uses three separate Amazon ECR repositories:
+
+```text
+devops-case-backend
+devops-case-frontend
+devops-case-etl
+```
+
+Images are tagged using the Git commit SHA.
+
+Example:
+
+```text
+devops-case-etl:<commit-sha>
+```
+
+This allows the deployed image version to be directly associated with the corresponding source commit.
 
 ## Backup and Restore
 
 MongoDB backups are created using `mongodump`, and restores are performed using `mongorestore`.
 
-Backup location:
+Backup location (won't be seen in the repository as it is included in .gitignore):
 
 ```text
 backups/sample-training-backup/
 ```
 
-The backup and restore process has been tested end-to-end using real application data.
+The backup and restore process has been tested end-to-end using real data.
 
 Detailed commands, retention, RPO/RTO, and production limitations:
 
 `docs/backup-restore.md`
 
-Work evidence:
+Evidence:
 
-`TESLIM_KANITLARI.md`
+`SUBMISSION_EVIDENCE.md`
 
 ## Logging and Alerts
 
 Operational logs are used on the backend and Python ETL sides.
+
+ETL logs show repository information, MongoDB connection status, update operations, document count, and successful completion.
 
 In addition:
 
@@ -543,36 +778,39 @@ In addition:
 scripts/check-alerts.ps1
 ```
 
-provides checks for two critical alert scenarios:
+checks two critical alert scenarios:
 
-* ETL failure or no successful ETL execution within the expected time window
+- ETL failure or the absence of a successful ETL execution within the expected time window
+- Inaccessibility of the frontend or backend health endpoints
 
-* Frontend or backend health endpoint unavailability
-
-The alert scenarios can be verified using test mode.
+The alert scenarios can be validated using test mode.
 
 ## Findings and Improvements
 
-The production-readiness issues identified in the initial application are documented in:
+Production-readiness issues identified in the initial application are documented in:
 
 `docs/findings.md`
 
 Main improvements include:
 
-* Managing the frontend API address through environment/configuration
-* Backend input validation
-* ObjectId validation
-* Database connection error handling
-* CORS restriction
-* HTTP error handling
-* Non-root container usage
-* Kubernetes securityContext
-* ETL duplicate prevention
-* CI/CD validation and deployment checks
+- Frontend API address managed through environment/configuration
+- Backend input validation
+- ObjectId validation
+- Database connection error handling
+- CORS restriction
+- HTTP error handling
+- Non-root container usage
+- Kubernetes securityContext
+- ETL duplicate prevention
+- CI/CD validation and deployment controls
+- AWS EKS deployment
+- Amazon ECR image management
+- GitHub OIDC authentication
+- Namespace-scoped Kubernetes RBAC
 
 ## Rollback
 
-In case of a deployment problem, the existing Kubernetes Deployment history can be inspected:
+In case of a deployment problem, inspect the existing Kubernetes Deployment history:
 
 ```powershell
 kubectl rollout history deployment/backend -n devops-case
@@ -586,11 +824,13 @@ kubectl rollout undo deployment/backend -n devops-case
 kubectl rollout undo deployment/frontend -n devops-case
 ```
 
-After rollback, rollout and healthcheck validations should be performed again.
+After the rollback, rollout and healthcheck verification should be performed again.
+
+Because deployed images are tagged with the commit SHA, the corresponding previous image version can also be identified in Amazon ECR.
 
 ## Cleanup
 
-To remove the Kubernetes workloads:
+To remove local Kubernetes workloads:
 
 ```powershell
 kubectl delete namespace devops-case
@@ -602,7 +842,9 @@ To stop the Docker Compose environment:
 docker compose down
 ```
 
-Unused Docker images created locally can also be removed using Docker.
+Unused locally built Docker images can also be removed through Docker.
+
+Removing application workloads from EKS does not automatically delete the EKS cluster or the underlying AWS infrastructure. Cluster and infrastructure cleanup must be managed separately.
 
 ## Documentation and Evidence
 
@@ -618,13 +860,13 @@ Backup/restore runbook:
 
 `docs/backup-restore.md`
 
-Case completion answers:
+Case answers:
 
-`CASE_SONU_CEVAPLARI.md`
+`CASE_END_ANSWERS.md`
 
-Work evidence:
+Evidence:
 
-`TESLIM_KANITLARI.md`
+`SUBMISSION_EVIDENCE.md`
 
 Screenshots:
 
@@ -632,5 +874,4 @@ Screenshots:
 
 Main case document:
 
-`DevOps_Teknik_Case_TR.docx`
-
+`DevOps_Technical_Case_EN.docx`

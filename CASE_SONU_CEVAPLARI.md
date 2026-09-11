@@ -1,160 +1,156 @@
 # CASE SONU CEVAPLARI
 
+Bu dosyada aşağıdaki soruların tamamını, yaptığınız çalışma ile doğrudan ilişkilendirerek cevaplayın.
+
+Cevaplarınızın kısa, somut ve teknik kararlarınızı açıklayacak düzeyde olması beklenmektedir. Gerekli gördüğünüz yerlerde ilgili kaynak koduna, manifest dosyasına, pipeline adımına veya dokümana dosya yolu vererek referans verebilirsiniz. Çalışma kanıtları ve ekran görüntüleri ayrıca `TESLIM_KANITLARI.md` dosyasında sunulmalıdır.
+
+---
+
 ## Aday Bilgileri
 
-* **Ad Soyad:** Tunahan Değirmencioğlu
-* **Repository adresi:** `https://github.com/dabbitz/devops-case-baykar.git`
-* **Çalışmanın tamamlandığı tarih:** 10.09.2026
-* **Kullanılan hedef ortam:** Yerel Kubernetes (Docker Desktop Kubernetes)
+- **Ad Soyad:** Tunahan Değirmencioğlu
+- **Repository adresi:** `https://github.com/dabbitz/devops-case-baykar.git`
+- **Çalışmanın tamamlandığı tarih:** 13.09.2026
+- **Kullanılan hedef ortam:** AWS EKS (`devops-case-eks`, `eu-central-1`)
 
 ---
 
 ## 1. Mimari ve İstek Akışı
 
-Sistem; React + NGINX frontend, Node.js/Express backend, Python ETL ve MongoDB Atlas bileşenlerinden oluşmaktadır. Kubernetes üzerinde frontend ve backend Deployment olarak, ETL ise saatlik CronJob olarak çalıştırılmıştır. Dış HTTP erişimi Envoy Gateway ve HTTPRoute üzerinden sağlanmaktadır.
+Kurduğunuz mimariyi ve bir kullanıcı isteğinin frontend’den başlayarak backend ve veritabanına kadar izlediği yolu açıklayın.
 
-Bir kullanıcı isteğinin akışı şöyledir:
+Ayrıca sistem bileşenlerini, bileşenler arasındaki bağlantıları, trafik akışını ve dış erişim noktalarını gösteren bir mimari diyagram hazırlayarak proje reposuna aşağıdaki dosyalardan biri olarak ekleyin:
+
+- `docs/architecture.md`
+- `docs/architecture.pdf`
+
+Diyagram Mermaid, Draw.io, Excalidraw veya benzeri bir araçla hazırlanabilir. Düzenlenebilir kaynak dosyasının da repoya eklenmesi beklenmektedir.
+
+**Cevap:**
+
+Ana deployment AWS EKS üzerinde çalışmaktadır. Frontend ve backend `Deployment + ClusterIP Service`, Python ETL ise saatlik `CronJob` olarak çalışır.
 
 ```text
-Kullanıcı / Browser
-        ↓
+User / Browser
+      ↓
+AWS Load Balancer
+      ↓
 Envoy Gateway
-        ↓
+      ↓
 HTTPRoute
-        ↓
-frontend-service
-        ↓
-React + NGINX
-        ↓
-/api/*
-        ↓
-backend-service
-        ↓
-Node.js / Express
-        ↓
-MongoDB Atlas
+   ┌──┴────┐
+   ↓       ↓
+Frontend Backend
+Service  Service
+   ↓       ↓
+React    Node.js
++ NGINX  + Express
+             ↓
+        MongoDB Atlas
 ```
 
-Frontend içerisindeki NGINX, `/api/` isteklerini Kubernetes içindeki `backend-service:5050` adresine yönlendirmektedir. Backend ise record CRUD işlemlerini MongoDB Atlas üzerindeki `sample_training` database'i içerisinde gerçekleştirmektedir.
+Frontend NGINX `/api/` isteklerini `backend-service:5050` adresine yönlendirir. Backend record CRUD işlemlerini MongoDB Atlas'taki `sample_training` database'inde gerçekleştirir.
 
-Python ETL bu akıştan bağımsız olarak GitHub API'den repository bilgisini almakta ve `github_id` üzerinden MongoDB'deki `github_repositories` collection'ına insert/update işlemi yapmaktadır.
+ETL ayrı olarak GitHub API'den repository bilgilerini alır ve `github_id` üzerinden `github_repositories` collection'ını upsert eder.
 
-Mimari diyagram `docs/architecture.md` dosyasında bulunmaktadır.
+Ayrıntılı mimari: `docs/architecture.md`
 
 ---
 
 ## 2. Kritik Bulgular ve Önceliklendirme
 
-Başlangıç projesindeki en kritik üç sorun:
+Başlangıç projelerinde tespit ettiğiniz en kritik üç sorun neydi? Bu sorunları hangi etki ve risk kriterlerine göre önceliklendirdiniz?
 
-1. **Frontend API adresinin hardcoded olması**
+**Cevap:**
 
-   * Frontend doğrudan `http://localhost:5050` adresine bağımlıydı.
-   * Container ve Kubernetes ortamında farklı endpoint kullanımı nedeniyle deployment esnekliğini engelliyordu.
-   * Konfigürasyon üzerinden yönetilecek şekilde düzeltildi.
+Öncelikli üç sorun:
 
-2. **Backend tarafında yetersiz input validation ve ObjectId kontrolü**
+1. **Frontend API adresinin hardcoded olması:** Localhost bağımlılığı deployment taşınabilirliğini azaltıyordu. API adresi configuration/environment üzerinden yönetilecek şekilde düzeltildi.
+2. **Input validation ve ObjectId kontrolü:** Geçersiz isteklerin database katmanına ulaşmasını engellemek için server-side validation ve ObjectId kontrolü eklendi.
+3. **MongoDB bağlantı hatasının kontrollü ele alınmaması:** Backend MongoDB bağlantısında fail-fast davranacak şekilde düzenlendi.
 
-   * Geçersiz veya eksik alanlar doğrudan database katmanına ulaşabiliyordu.
-   * ObjectId doğrulamasındaki hata hatalı isteklerin yanlış değerlendirilmesine neden olabiliyordu.
-   * Server-side validation ve ObjectId kontrolü eklendi.
+Önceliklendirmede production etkisi, güvenilirlik, güvenlik, deployment taşınabilirliği ve veri erişimi üzerindeki riskler dikkate alındı.
 
-3. **Database bağlantı hatasının kontrollü ele alınmaması**
-
-   * Başlangıçta MongoDB bağlantısı başarısız olsa bile uygulamanın çalışmaya devam etmesi mümkündü.
-   * Bu durum servisin sağlıklı görünmesine rağmen database işlemlerinin başarısız olması riskini oluşturuyordu.
-   * Backend bağlantısı fail-fast olacak şekilde düzenlendi.
-
-Önceliklendirme; **production etkisi, güvenilirlik, deployment taşınabilirliği ve veri erişimi üzerindeki risk** kriterlerine göre yapıldı. Özellikle uygulamanın çalışıyor görünmesine rağmen veri katmanına erişememesi daha yüksek öncelikli değerlendirildi.
-
-Detaylar `docs/findings.md` içerisinde bulunmaktadır.
+Ayrıntılar: `docs/findings.md`
 
 ---
 
 ## 3. Kapsam Dışında Bırakılan Konular
 
-Aşağıdaki konular mevcut case kapsamında uygulanmadı veya production tasarımı seviyesinde bırakıldı:
+Hangi sorunları bilinçli olarak düzeltmediniz veya kapsam dışında bıraktınız? Bu kararların gerekçelerini açıklayın.
 
-* Terraform veya başka bir tam IaC çözümü kullanılmadı. Case'in mevcut kapsamı için Kubernetes manifestleri yeterli görüldü.
-* Uygulamanın Helm chart'ı oluşturulmadı. Manifest tabanlı deployment daha küçük kapsam ve daha az ek karmaşıklık sağladığı için tercih edildi.
-* Prometheus/Grafana gibi tam kapsamlı monitoring stack'i kurulmadı.
-* HPA, PDB ve gelişmiş autoscaling politikaları uygulanmadı.
-* GitOps, canary veya blue/green deployment uygulanmadı.
-* Production seviyesinde otomatik, off-site ve uzun süreli backup storage kurulmadı.
-* MongoDB cluster'ı Kubernetes StatefulSet olarak deploy edilmedi; production kalıcı veri katmanı olarak MongoDB Atlas kullanıldı.
+**Cevap:**
 
-Bu kararların temel nedeni case kapsamında gerekli olan ana DevOps fonksiyonlarını çalışır ve doğrulanabilir şekilde tamamlamak, gereksiz operasyonel karmaşıklık eklememektir.
+Temel case gereksinimleri tamamlanmış; ancak bazı production-level özellikler kapsam dışında bırakılmıştır.
+
+Örneğin Terraform/OpenTofu ile tam IaC, Prometheus/Grafana, HPA/PDB, GitOps, canary/blue-green deployment, otomatik off-site backup retention ve distributed tracing uygulanmamıştır.
+
+Buna karşılık çözüm AWS EKS, Amazon ECR, GitHub OIDC, IAM, EKS RBAC, Helm tabanlı Envoy Gateway, non-root container hardening ve doğrulanabilir alert kontrolleri ile genişletilmiştir.
+
+Üretim ortamında bu eksik alanlar gerektiğinde ayrı bir ölçekleme, gözlemlenebilirlik ve disaster recovery katmanı olarak eklenebilir.
 
 ---
 
 ## 4. Hedef Ortam Seçimi
 
-Geliştirme ve doğrulama ortamı olarak **Docker Desktop üzerindeki yerel Kubernetes** kullanılmıştır. Bu seçim; Kubernetes manifestlerinin, Service/Deployment/CronJob yapılandırmalarının, Envoy Gateway erişiminin ve container security ayarlarının gerçek Kubernetes ortamında kolayca test edilebilmesini sağladı.
+Cloud veya sanal makine tercihinin gerekçesi nedir? Gerçek bir production ortamında mevcut çözümden farklı olarak hangi bileşenleri veya yaklaşımları kullanırdınız?
 
-Ayrıca CI/CD pipeline'ında deployment doğrulaması için GitHub Actions üzerinde geçici bir **Kind Kubernetes cluster** oluşturulmaktadır. Böylece deployment adımları yalnızca geliştirici makinesine bağlı kalmadan CI ortamında da doğrulanmaktadır.
+**Cevap:**
 
-Gerçek production ortamında:
+AWS EKS seçilmiştir çünkü uygulama container tabanlıdır ve frontend, backend ve periyodik ETL workload'larının managed Kubernetes üzerinde gerçek bir cloud ortamında çalıştırılması hedeflenmiştir.
 
-* Cloud veya Linux VM tabanlı kalıcı bir Kubernetes cluster'ı,
-* Kalıcı ve erişilebilir ingress/gateway altyapısı,
-* Managed MongoDB / MongoDB Atlas,
-* TLS ve domain yönetimi,
-* Merkezi secret management,
-* Monitoring ve alerting platformu,
-* Kalıcı container registry,
-* Otomatik backup ve off-site retention
+Bu seçim ile Amazon ECR, AWS IAM, GitHub OIDC, EKS RBAC, Envoy Gateway ve AWS Load Balancer birlikte kullanılabilmiştir.
 
-kullanırdım.
-
-Mevcut GitHub Actions deployment'ı geçici Kind cluster'ında doğrulama amaçlıdır; production'daki kalıcı Kubernetes cluster'ının yerini tutmamaktadır.
+Production ortamında mevcut yapının üzerine Terraform/OpenTofu, HPA ve node autoscaling, PDB/multi-node dağılımı, Prometheus/Grafana, merkezi secret management, otomatik off-site backup, HTTPS/domain yönetimi ve kontrollü release stratejileri eklerdim.
 
 ---
 
 ## 5. MongoDB Yaklaşımı
 
-Normal uygulama deployment'ında MongoDB **MongoDB Atlas** üzerinde tutulmuştur. Böylece database'in Kubernetes workload'larından ayrılması ve persistent database operasyonlarının managed bir servis tarafından yürütülmesi sağlanmıştır.
+MongoDB için kullandığınız deployment ve servis yaklaşımını neden seçtiniz? Değerlendirdiğiniz alternatifleri, avantajları, dezavantajları ve operasyonel trade-off’ları açıklayın.
 
-Bu seçim için değerlendirilen başlıca alternatifler:
+**Cevap:**
 
-| Yaklaşım                     | Avantaj                                                                  | Dezavantaj                                                               |
-| ---------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| MongoDB Atlas                | Managed backup, operasyon ve persistent storage; Kubernetes'ten bağımsız | External network dependency ve erişim/allowlist yönetimi gerekir         |
-| Kubernetes StatefulSet + PVC | Cluster içinde tam kontrol ve Kubernetes-native yapı                     | Storage, backup, replication ve database operasyonları kullanıcıya kalır |
-| Geçici MongoDB Deployment    | CI/test için basit                                                       | Persistent data ve production kullanımı için uygun değil                 |
+Normal deployment'ta MongoDB Atlas kullanılmıştır. Böylece database persistent storage ve operasyonları Kubernetes workload'larından ayrılmıştır.
 
-Bu nedenle production benzeri normal çalışma için Atlas, CI/CD ortamında ise dış IP allowlist probleminden kaçınmak amacıyla geçici bir MongoDB Deployment seçilmiştir.
+Değerlendirilen alternatifler:
 
-CI/CD'deki `k8s/ci-mongodb.yaml` yalnızca ephemeral test ortamı içindir.
+| Yaklaşım          | Avantaj                          | Dezavantaj                                            |
+| ----------------- | -------------------------------- | ----------------------------------------------------- |
+| MongoDB Atlas     | Managed operasyon ve persistence | External network dependency                           |
+| StatefulSet + PVC | Kubernetes-native kontrol        | Storage/backup/replication yönetimi kullanıcıya kalır |
+| Geçici MongoDB    | CI/test için basit               | Production data için uygun değil                      |
+
+Bu nedenle uygulama deployment'ında Atlas, CI doğrulamasında ise ephemeral MongoDB kullanılmıştır. `k8s/ci-mongodb.yaml` yalnızca CI/test amaçlıdır.
 
 ---
 
 ## 6. Helm veya Manifest Yönetimi
 
-Uygulamanın kendi Kubernetes workload'ları düz manifest dosyaları ile yönetilmiştir.
+Çözümünüzde Helm kullandıysanız neden tercih ettiğinizi ve Helm’in bu projede hangi problemi çözdüğünü açıklayın.
 
-Örneğin:
+Düz Kubernetes manifestleri veya Kustomize gibi alternatiflerle karşılaştırıldığında sağladığı avantajları ve oluşturduğu ek karmaşıklığı belirtin.
 
-```text
-k8s/
-├── namespace.yaml
-├── backend-deployment.yaml
-├── backend-service.yaml
-├── frontend-deployment.yaml
-├── frontend-service.yaml
-├── etl-cronjob.yaml
-└── ci-mongodb.yaml
-```
+Helm kullanmadıysanız tercih ettiğiniz yöntemi ve seçim gerekçenizi açıklayın.
 
-Bu case için düz manifest tercih edilmesinin nedeni workload sayısının düşük olması ve chart templating gerektirecek kadar çok environment/variant bulunmamasıdır.
+**Cevap:**
 
-Helm ise **Envoy Gateway kurulumu** için kullanılmıştır. Böylece hazır ve kompleks bir third-party Kubernetes bileşeni manuel olarak çok sayıda resource ile kurulmak yerine resmi Helm chart üzerinden kurulmuştur.
+Uygulamanın kendi Kubernetes kaynakları düz manifest dosyalarıyla yönetilmiştir. Bu kaynaklarda ortak bir templating veya çoklu environment değer yönetimi gereksinimi bulunmadığı için Helm chart yerine doğrudan manifest kullanımı tercih edilmiştir.
 
-Helm'in avantajı reusable paketleme, versioning ve dependency yönetimidir. Dezavantajı ise küçük ve sabit bir uygulama için ek templating ve configuration karmaşıklığı oluşturabilmesidir.
+Karşılaştırma ve Tercih Nedenleri:
+
+- **Düz Manifestler**: Okunması, anlaşılması ve hata ayıklaması en kolay yöntemdir. Projede çoklu ortam ihtiyacı olmadığı için kendi kaynaklarımızı düz YAML dosyalarıyla yönetiyoruz.
+
+- **Helm / Kustomize**: Şablonlama, parametre yönetimi ve versiyonlama sunar. Ancak mevcut proje ölçeğinde kendi manifestlerimiz için kullanılması gereksiz karmaşıklık oluşturacağından, yalnızca Envoy Gateway gibi üçüncü taraf bağımlılıkların yönetiminde kullanılmıştır.
+
+Envoy Gateway ise birden fazla ilişkili Kubernetes kaynağından oluşan third-party bir bileşen olduğundan, resmi Helm chart'ı üzerinden kurulmuştur.
 
 Bu nedenle:
 
-* **Kendi uygulamam:** düz manifest
-* **Third-party Gateway:** Helm
+```text
+Application workloads  → Kubernetes manifests
+Envoy Gateway          → Helm
+```
 
 yaklaşımı kullanılmıştır.
 
@@ -162,452 +158,300 @@ yaklaşımı kullanılmıştır.
 
 ## 7. Kubernetes Service Tipleri
 
-Uygulamadaki frontend ve backend Service'leri `ClusterIP` olarak tanımlanmıştır.
+Kubernetes Service tiplerini hangi kriterlere göre belirlediniz?
 
-### Backend
+Her servis için neden `ClusterIP`, `NodePort`, `LoadBalancer`, `ExternalName` veya headless Service tercih ettiğinizi açıklayın. Hangi servislerin cluster dışından erişilebilir olması gerektiğini ve gereksiz dış erişimi nasıl engellediğinizi belirtin.
 
-`backend-service`:
+**Cevap:**
 
-```text
-type: ClusterIP
-port: 5050
-```
+Servis tipleri, **minimum dışa açıklık (least exposure) ve merkezi trafik yönetimi** kriterlerine göre kurgulanmıştır.
 
-Backend'in doğrudan cluster dışından erişilebilir olması gerekmemektedir. Frontend backend'e Kubernetes iç ağından erişmektedir.
-
-### Frontend
-
-`frontend-service`:
+Frontend ve backend için `ClusterIP` kullanılmıştır:
 
 ```text
-type: ClusterIP
-port: 80
+frontend-service → ClusterIP :80
+backend-service  → ClusterIP :5050
 ```
 
-Frontend'in de doğrudan NodePort veya LoadBalancer olarak açılması yerine dış HTTP trafiği Envoy Gateway üzerinden alınmaktadır.
+Uygulama bileşenlerinin doğrudan dışarıya açık olması güvenlik açısından iyi değildir. Bu nedenle node'ların portlarını dışarı açan NodePort veya her servis için bulut sağlayıcıda ayrı bir yük dengeleyici oluşturup trafiği Gateway dışına çıkaran LoadBalancer tipleri tercih edilmemiştir.
 
-### Dış erişim
+Özel bir DNS çözümleme (pod-to-pod doğrudan erişim) veya dış kaynak proxy'leme ihtiyacı olmadığı için Headless veya ExternalName de kullanılmamıştır. Dış trafik AWS Load Balancer → Envoy Gateway → HTTPRoute üzerinden Service'lere yönlendirilir.
 
-Dış erişim:
+Böylece NodePort veya doğrudan LoadBalancer kullanılarak backend'in ayrıca dışarıya açılması engellenmiştir.
 
-```text
-Internet / Browser
-        ↓
-Envoy Gateway
-        ↓
-HTTPRoute
-        ↓
-frontend-service
-```
-
-şeklindedir.
-
-Bu nedenle NodePort ve LoadBalancer kullanılmayarak gereksiz doğrudan dış erişim azaltılmıştır.
-
-MongoDB için Kubernetes Service kullanılmamıştır; normal deployment'ta MongoDB Atlas external managed service olarak kullanılmaktadır.
+Manifestler: `k8s/` ve `k8s/eks/`
 
 ---
 
 ## 8. Kubernetes Workload Türleri
 
-### Frontend
+Uygulama bileşenleri için kullandığınız iş yükü (workload) türlerini hangi kriterlere göre seçtiniz?
 
-Frontend stateless bir web workload'udur. Kullanıcı verisi Pod filesystem'inde tutulmadığı için `Deployment` kullanılmıştır.
+Frontend, backend, MongoDB ve ETL bileşenlerinde neden `Deployment`, `StatefulSet`, `Job`, `CronJob` veya farklı bir workload türü kullandığınızı açıklayın.
 
-Avantajları:
+Karar verirken aşağıdaki konuları nasıl değerlendirdiğinizi belirtin:
 
-* Replica artırılabilir.
-* Pod yeniden oluşturulduğunda veri kaybı beklenmez.
-* Rolling update desteklenir.
+- Stateless veya stateful çalışma modeli
+- Kalıcı depolama ihtiyacı
+- Pod kimliği ve sıralı çalışma gereksinimi
+- Çalışma sıklığı
+- Yeniden başlatma davranışı
+- Ölçeklenebilirlik ihtiyacı
 
-### Backend
+**Cevap:**
 
-Backend de stateless REST API olduğu için `Deployment` kullanılmıştır.
-
-Backend'in kalıcı verisi container içerisinde değil MongoDB'de tutulmaktadır.
-
-### MongoDB
-
-Normal uygulama deployment'ında MongoDB Kubernetes üzerinde çalıştırılmamıştır. MongoDB Atlas kullanıldığı için StatefulSet ve PVC yönetimi uygulama cluster'ından ayrılmıştır.
-
-CI/CD pipeline'ında kullanılan MongoDB ise sadece geçici test ortamıdır ve persistent production data taşımamaktadır.
-
-### ETL
-
-ETL periyodik çalışan bir iş olduğu için `CronJob` kullanılmıştır:
+- **Frontend → `Deployment`:** Stateless web workload'dur; kalıcı storage, özel Pod kimliği veya sıralı çalışma gerektirmez. Replica ve rolling update desteklenir.
+- **Backend → `Deployment`:** Stateless REST API'dir; kalıcı veri MongoDB'de tutulur. Özel Pod kimliği gerekmez ve yatay ölçeklenebilir.
+- **MongoDB:** Normal deployment'ta MongoDB Atlas kullanıldığı için Kubernetes `StatefulSet` kullanılmamıştır. CI'daki MongoDB yalnızca ephemeral test workload'udur.
+- **ETL → `CronJob`:** Saatlik çalışan periyodik bir workload'dur. Her çalışma ayrı bir `Job` oluşturur; `Forbid` ile çakışan çalışmalar engellenir ve başarısız çalışmalarda retry uygulanır.
 
 ```text
 0 * * * *
 ```
 
-Bu yapı ETL'nin her saat başında çalışmasını sağlar.
-
-ETL için Deployment kullanmak sürekli çalışan bir Pod gerektireceği için gereksiz kaynak kullanımı oluştururdu. CronJob ayrıca başarısız çalışmalarda Kubernetes'in Job retry mekanizmasını kullanmasına olanak sağlar.
-
-Ek olarak:
-
-```text
-concurrencyPolicy: Forbid
-backoffLimit: 2
-restartPolicy: Never
-successfulJobsHistoryLimit: 3
-failedJobsHistoryLimit: 3
-```
-
-ayarları kullanılmıştır.
+Bu seçimlerde stateless/stateful çalışma, persistence, Pod kimliği ve sıralama ihtiyacı, çalışma sıklığı, yeniden başlatma davranışı ve ölçeklenebilirlik dikkate alınmıştır.
 
 ---
 
 ## 9. Konfigürasyon ve Secret Yönetimi
 
-Hassas bilgiler source code içerisinde hardcode edilmemiştir.
+Uygulama konfigürasyonlarını ve secret bilgilerini nasıl yönettiniz?
 
-Örnek bilgiler:
+Bir secret değeri değiştirildiğinde veya yenilendiğinde uygulamanın yeni değeri güvenli şekilde kullanmasını nasıl sağlarsınız?
 
-* MongoDB URI
-* GitHub API token
+**Cevap:**
 
-Kubernetes deployment'ında Secret kaynakları kullanılmıştır. Hassas olmayan konfigürasyonlar environment variable olarak sağlanmaktadır.
+Secret'lar source code veya Docker image içine hardcode edilmemiştir.
 
-Örneğin backend için:
+Local Kubernetes deployment'ında `setup-k8s.ps1` `.env` değerlerinden Secret kaynakları oluşturur. AWS EKS deployment'ında ise değerler GitHub Actions Secrets üzerinden Kubernetes Secrets'a aktarılır.
 
-```text
-ATLAS_URI
-ALLOWED_ORIGIN
-```
+Önemli değerler arasında `ATLAS_URI`, `GITHUB_TOKEN` ve `MONGODB_URI` bulunmaktadır.
 
-ETL için:
-
-```text
-GITHUB_TOKEN
-MONGODB_URI
-```
-
-gibi değerler kullanılmaktadır.
-
-Bir secret değiştirildiğinde, environment variable olarak Pod'a enjekte edilmiş eski değer çalışan process içerisinde otomatik olarak değişmez. Bu nedenle güvenli uygulama yöntemi secret'ın güncellenmesi ve ilgili Deployment/CronJob workload'larının yeni Pod ile yeniden başlatılmasıdır.
-
-Production ortamında secret rotation için merkezi secret management çözümü ve kontrollü rollout tercih edilebilir.
+Bir Secret değiştirildiğinde mevcut Pod içindeki environment variable otomatik değişmeyeceğinden workload yeni Pod oluşturacak şekilde rollout edilmelidir. Production'da secret rotation için merkezi secret manager kullanılabilir.
 
 ---
 
 ## 10. MongoDB Erişim Problemi
 
-Mevcut backend uygulamasında MongoDB bağlantısı startup sırasında kurulmaktadır. Bağlantı başarısız olursa uygulama fail-fast davranarak process'i sonlandırmaktadır.
+MongoDB erişilemez hale gelirse backend uygulaması, readiness/liveness kontrolleri ve kullanıcı istekleri nasıl davranır?
 
-Bu yaklaşım sayesinde database olmadan sağlıksız bir backend'in çalışıyor görünmesi engellenmektedir.
+Kullanıcı etkisini azaltmak ve servisin kontrollü şekilde toparlanmasını sağlamak için hangi önlemleri aldınız veya alırdınız?
 
-Mevcut sistemde `/healthcheck/` endpoint'i process'in HTTP olarak cevap verdiğini kontrol etmektedir. Ancak şu anda MongoDB dependency'sini doğrudan doğrulayan ayrı readiness/liveness probe tanımı bulunmamaktadır.
+**Cevap:**
 
-Production ortamında:
+Backend, MongoDB bağlantısını startup sırasında kurar ve bağlantı başarısız olduğunda fail-fast davranarak process'i sonlandırır.
 
-* **Liveness probe:** process'in çalıştığını kontrol eder.
-* **Readiness probe:** backend'in MongoDB dahil gerekli dependency'lere erişebildiğini kontrol eder.
+Mevcut `/healthcheck/` endpoint'i HTTP process erişilebilirliğini doğrular; MongoDB dependency'sini doğrudan kontrol eden ayrı Kubernetes readiness/liveness probe mevcut değildir.
 
-şeklinde ayrıştırırdım.
+Production'da readiness probe'u MongoDB dahil gerekli dependency'leri kontrol edecek şekilde ayırırdım. Böylece database erişimi olmayan bir Pod yeni kullanıcı trafiğini almaktan çıkarılabilir.
 
-MongoDB erişimi kaybolduğunda readiness başarısız olacak şekilde tasarlanırsa Kubernetes yeni kullanıcı trafiğini sağlıksız Pod'a yönlendirmemeye yardımcı olabilir. Database işlemleri ise kontrollü HTTP hataları ve uygulama logları ile izlenmelidir.
-
-Bu case'te mevcut healthcheck endpoint'i CI/CD sırasında backend'in erişilebilirliğini doğrulamak amacıyla kullanılmıştır.
+Backend healthcheck, CI/CD deployment sonrasında da doğrulanmaktadır.
 
 ---
 
 ## 11. Hatalı Deployment ve Rollback
 
-Hatalı deployment tespitinde ilk olarak:
+Hatalı bir sürüm deploy edildiğinde problemi nasıl tespit edersiniz?
 
-```text
+Rollback işlemini hangi yöntemle gerçekleştirirsiniz ve önceki çalışan sürümün güvenli şekilde devreye alındığını nasıl doğrularsınız?
+
+**Cevap:**
+
+Önce:
+
+```powershell
 kubectl get pods -n devops-case
 kubectl describe pod <pod> -n devops-case
 kubectl logs <pod> -n devops-case
 kubectl get events -n devops-case
 ```
 
-komutları ile Pod durumu, container logları ve Kubernetes event'leri incelenir.
+komutlarıyla Pod ve event'ler ne durumda incelerim.
 
-Deployment rollout durumu:
+Deployment geçmişine bakarım:
 
-```text
-kubectl rollout status deployment/backend -n devops-case
-kubectl rollout status deployment/frontend -n devops-case
+```powershell
+kubectl rollout history deployment/backend -n devops-case
+kubectl rollout history deployment/frontend -n devops-case
 ```
 
-ile kontrol edilir.
+Ve önceki sürüme dönerim:
 
-Hatalı bir sürümde önceki çalışan ReplicaSet'e dönmek için:
-
-```text
+```powershell
 kubectl rollout undo deployment/backend -n devops-case
+kubectl rollout undo deployment/frontend -n devops-case
 ```
 
-veya frontend için aynı yöntem kullanılabilir.
+Rollback yaptıktan sonra rollout status, backend healthcheck ve frontend erişimi tekrar doğrulanır.
 
-Rollback sonrasında:
-
-```text
-kubectl rollout status deployment/backend -n devops-case
-```
-
-ile rollout doğrulanır ve ardından backend healthcheck ile frontend endpoint tekrar test edilir.
-
-CI/CD pipeline'ında deployment job'ının healthcheck aşaması başarısız olursa pipeline başarısız olarak sonuçlanmaktadır.
+CI/CD deployment sonrası healthcheck başarısız olduğunda job başarısız sonuçlanır.
 
 ---
 
 ## 12. Ölçeklenebilirlik ve Darboğazlar
 
-Trafiğin 10 kat artması durumunda ilk darboğaz olarak backend kaynak kullanımı ve ardından MongoDB bağlantıları/database kapasitesini beklerim.
+Trafik 10 kat arttığında ilk darboğazın nerede oluşmasını beklersiniz?
 
-Öncelikle şu metrikleri değerlendirirdim:
+Hangi bileşenleri, hangi metriklere ve eşiklere göre ölçeklersiniz? Veritabanı bağlantıları, kaynak kullanımı ve bağımlı servisleri nasıl değerlendirirsiniz?
 
-* CPU kullanımı
-* Memory kullanımı
-* HTTP request rate
-* Response latency
-* HTTP error rate
-* MongoDB connection usage
-* MongoDB query latency
+**Cevap:**
 
-Backend stateless olduğu için replica sayısı artırılarak yatay ölçekleme yapılabilir.
+Trafiğin 10 kat artması durumunda ilk olarak backend CPU/memory kullanımı ve MongoDB connection/query yükünü incelerim.
 
-Production ortamında örneğin CPU ve memory utilization belirli bir seviyenin üzerinde sürekli seyrediyorsa HPA uygulanabilir. Ancak yalnızca CPU'ya göre ölçeklemek yerine request rate ve latency gibi uygulama metrikleri de değerlendirilmelidir.
+İncelenmesi gereken önemli değerler:
 
-Frontend de stateless olduğundan benzer şekilde replica artırılabilir.
+- CPU / memory
+- request rate
+- response latency
+- error rate
+- MongoDB connection usage
+- query latency
 
-MongoDB tarafında ise yalnızca application replica sayısını artırmak yeterli değildir. Artan replica sayısının oluşturacağı database connection yükü, query performansı ve database kapasitesi ayrıca değerlendirilmelidir.
+Backend ve frontend stateless olduğu için replica sayıları arttırılabilir. Gerektiğinde node autoscaling (node sayısının iş yükü talebine göre otomatik olarak arttırılması veya azaltılması) uygulanabilir. Örneğin, AWS EKS'de bu HPA (Horizontal Pod Autoscaler) ile yapılabilir.
 
-Bu nedenle ölçeklendirme kararı application ve database metrikleri birlikte incelenerek verilmelidir.
+MongoDB'nin replica sayısı, connection ve database yükünü arttıracağından ayrıca değerlendirilmelidir.
 
 ---
 
 ## 13. Logging, Monitoring ve Alarm Yönetimi
 
-Backend ve ETL tarafında operasyonel olarak anlamlı loglar bulunmaktadır.
+Hangi log'ları, metrikleri ve alarmları oluşturdunuz?
 
-Backend örnekleri:
+Bir incident sırasında problemi teşhis etmek için ilk olarak hangi dashboard, log, metrik veya alarm kayıtlarını incelersiniz?
 
-```text
-Connecting to MongoDB Atlas...
-Server listening on port 5050
-Database connection failed...
-```
+**Cevap:**
 
-ETL örnekleri:
+Backend ve ETL tarafında işlemlerle ilgili log'lar tutulmaktadır.
 
-```text
-Fetching repository
-Github repository received
-Connecting to MongoDB
-MongoDB connection successful
-UPDATE: repository updated
-MongoDB document count
-ETL completed successfully
-```
+ETL log'ları repository, MongoDB bağlantısı, update işlemi, document count ve başarılı tamamlanma durumlarını gösterir.
 
-Kubernetes CronJob logları ETL'nin hangi aşamada olduğunu ve başarılı/başarısız durumunu takip etmek için kullanılmaktadır.
+İki kritik alarm senaryosu uygulanmıştır:
 
-Ayrıca `scripts/check-alerts.ps1` içerisinde iki kritik alarm kontrolü bulunmaktadır:
+- **ALERT-001:** ETL başarısızlığı veya beklenen sürede başarılı ETL çalışmasının bulunmaması
+- **ALERT-002:** Frontend veya backend health endpoint'lerinin erişilememesi
 
-* **ALERT-001:** ETL başarısızlığı veya beklenen zaman aralığında başarılı ETL çalışmasının bulunmaması
-* **ALERT-002:** Frontend veya backend health endpoint'lerinin erişilememesi
+Bu kontroller `scripts/check-alerts.ps1` ile test edilmiştir.
 
-Script'in test modu ile iki alarm da bilinçli olarak tetiklenerek doğrulanmıştır.
-
-Incident sırasında ilk olarak:
-
-```text
-1. Alert sonucu
-2. Kubernetes Pod / Job durumu
-3. ETL veya backend logları
-4. Deployment rollout durumu
-5. Backend healthcheck
-6. Frontend endpoint
-```
-
-incelenir.
-
-Daha gelişmiş production ortamında Prometheus/Grafana, merkezi log toplama ve gerçek notification kanalları eklenebilir.
+Incident sırasında önce alert sonucu, Kubernetes Pod/Job durumu, ilgili log'lar, rollout durumu ve healthcheck sonuçları incelenir.
 
 ---
 
 ## 14. Güvenlik Riskleri
 
-### 1. Secret / credential exposure
+Çözümünüzde gördüğünüz en önemli üç güvenlik riski nedir?
 
-MongoDB URI ve GitHub API token gibi hassas bilgilerin source code veya image içerisine girmesi ciddi risk oluşturur.
+Bu riskleri azaltmak için uyguladığınız veya production ortamında uygulayacağınız kontrolleri açıklayın.
 
-Kontrol olarak:
+**Cevap:**
 
-* Secret bilgileri environment variable / Kubernetes Secret üzerinden sağlanmıştır.
-* `.env` ve benzeri secret dosyaları `.gitignore` içerisine alınmıştır.
-* Docker image'larına secret değerleri yazılmamıştır.
+Üç önemli risk ve alınan önlemler:
 
-Production'da merkezi secret management çözümü kullanılabilir.
+1. **Secret exposure:** Secret'lar, GitHub Actions Secrets / Kubernetes Secrets üzerinden yönetilmiş, source code ve image içine gömülmemiştir.
+2. **Root container kullanımı:** `runAsNonRoot`, `allowPrivilegeEscalation: false` ve `capabilities.drop: ALL` parametreleri kullanılmıştır.
+3. **Gereksiz dış erişim:** Frontend ve backend, `ClusterIP` olarak bırakılmıştır ve dış erişim Envoy Gateway üzerinden sağlanmıştır.
 
-### 2. Container'ların root olarak çalışması
-
-Root container ele geçirilmesi durumunda container içerisindeki saldırı etkisini artırabilir.
-
-Bu nedenle workload'larda:
-
-```yaml
-runAsNonRoot: true
-allowPrivilegeEscalation: false
-capabilities:
-  drop:
-    - ALL
-```
-
-kullanılmıştır.
-
-Container kullanıcıları:
-
-```text
-Backend  → node / UID 1000
-Frontend → nginx / UID 101
-ETL      → appuser / UID 10001
-```
-
-olarak doğrulanmıştır.
-
-### 3. Gereksiz dış ağ erişimi
-
-Backend'in doğrudan dışarıya NodePort veya LoadBalancer olarak açılması saldırı yüzeyini artırabilir.
-
-Bu nedenle frontend ve backend Service'leri `ClusterIP` olarak kullanılmış, dış erişim Envoy Gateway üzerinden sınırlandırılmıştır.
+Aynı zamanda GitHub Actions AWS erişimi için OIDC, IAM least privilege ve namespace-scoped Kubernetes RBAC kullanılmıştır.
 
 ---
 
 ## 15. Python ETL Güncelleme Yaklaşımı
 
-ETL, GitHub repository ID'sini benzersiz kayıt anahtarı olarak kullanmaktadır.
+Python ETL aynı repository bilgisini tekrar aldığında mevcut kaydı nasıl bulup güncelliyor? Benzersiz kayıt anahtarı olarak hangi alanı kullandınız ve duplicate oluşmadığını hangi ekran görüntüsü veya çıktı ile gösterdiniz?
 
-Kullanılan alan:
+**Cevap:**
+
+Benzersiz kayıt anahtarı olarak:
 
 ```text
 github_id
 ```
 
-Örneğin repository'nin ID'si:
+kullanılmıştır.
+
+Örneğin (bu projenin github'daki repo id'si):
 
 ```text
-1361100555
+github_id = 1361100555
 ```
 
-şeklindedir.
+Aynı repository tekrar işlendiğinde `update_one(..., upsert=True)` ile mevcut document güncellenir; yeni duplicate document oluşturulmaz.
 
-Aynı repository tekrar işlendiğinde yeni MongoDB document oluşturmak yerine mevcut kayıt `github_id` üzerinden güncellenmektedir.
+Kanıt:
 
-Gerçek çalıştırmada:
+- `docs/screenshots/20-etl-first-load.png`
+- `docs/screenshots/21-etl-update-without-duplicate.png`
+- `docs/screenshots/22-eks-etl-success.png`
 
-```text
-UPDATE: repository updated (github_id=1361100555)
-MongoDB document count: 1
-ETL completed successfully.
-```
-
-çıktısı alınmıştır.
-
-Bu kanıt `docs/screenshots/13-etl-update-without-duplicate.png` dosyasında sunulmuştur.
+ETL log'ları update işlemini ve `MongoDB document count: 1` sonucunu göstermektedir. Aynı zamanda hangi alanların update edildiği de `Updated fields: ...` şeklinde gösterilmiştir.
 
 ---
 
 ## 16. Backup ve Restore Yaklaşımı
 
-Backup için MongoDB Database Tools içerisindeki `mongodump` kullanılmıştır.
+MongoDB için hangi yedekleme yöntemini ve saklama konumunu seçtiniz?
 
-Backup:
+Yedekleme sıklığı, retention süresi, RPO ve RTO hedefleriniz nedir ve ölçtüğünüz gerçek geri yükleme süresi ne kadar oldu?
 
-```text
-MongoDB Atlas
-      ↓
-mongodump
-      ↓
-backups/sample-training-backup
-```
+Yedeğin bozuk veya eksik olmasına karşı hangi doğrulamayı yaparsınız; gerçek bir production ortamında bu yaklaşımı nasıl farklılaştırırdınız?
 
-konumuna alınmıştır.
+Runbook’unuzu `docs/backup-restore.md` içinde paylaşın ve kanıtları `TESLIM_KANITLARI.md` dosyasından referanslayın.
 
-Backup senaryosunda `sample_training` database'inin tamamı yedeklenmiştir.
+**Cevap:**
 
-Gerçek testte:
+MongoDB Atlas verisi `mongodump` ile `sample_training` database'i seviyesinde yedeklenmiş ve backup `backups/sample-training-backup/` altında saklanmıştır.
+
+Test kapsamında:
 
 ```text
-sample_training.records               → 1 document
-sample_training.github_repositories   → 1 document
-Toplam                                → 2 documents
+records                 → 1 document
+github_repositories     → 1 document
+Total                   → 2 documents
 ```
 
 yedeklenmiştir.
 
-Daha sonra database silinmiş, hem web arayüzünde hem MongoDB Atlas üzerinde verinin kaybolduğu doğrulanmış ve `mongorestore` ile geri yükleme gerçekleştirilmiştir.
+Mevcut case çözümünde backup **manuel** alınmaktadır; otomatik backup sıklığı ve retention uygulanmamıştır. Production hedefi olarak **RPO ≤ 24 saat** belirlenebilir. Ölçülen restore komut süresi yaklaşık **1.3 saniyedir**; bu değer yalnızca komut süresidir ve production **RTO olarak kabul edilmemektedir**.
+
+Restore doğrulamasında:
+
+- database silinerek veri kaybı doğrulanmıştır,
+- `mongorestore` sonucu ve hata sayısı kontrol edilmiştir,
+- collection ve document count doğrulanmıştır,
+- verinin uygulama üzerinden tekrar okunabildiği doğrulanmıştır.
 
 Restore sonucu:
 
 ```text
-2 document(s) restored successfully.
-0 document(s) failed to restore.
+2 documents restored successfully.
+0 documents failed to restore.
 ```
 
-olarak doğrulanmıştır.
+Production ortamında otomatik ve encrypted backup, tanımlı retention, off-site/object storage, düzenli restore testleri ve gerçek RPO/RTO takibi kullanırdım.
 
-Ölçülen restore komut süresi yaklaşık:
+Runbook: `docs/backup-restore.md`
+Kanıtlar: `TESLIM_KANITLARI.md` "6. Backup ve Restore" bölümünden:
 
-```text
-1.3 saniye
-```
-
-olmuştur.
-
-Bu süre yalnızca restore komutunun çalışma süresidir; production uçtan uca RTO olarak değerlendirilmemiştir.
-
-### RPO / Retention
-
-Mevcut case çözümünde backup manuel olarak alınmaktadır ve otomatik retention veya off-site backup storage uygulanmamıştır.
-
-Production hedefi olarak en fazla **24 saatlik veri kaybı** kabul edilecek şekilde bir RPO hedeflenebilir. Ancak mevcut manuel yöntem bu RPO'yu garanti etmemektedir.
-
-Retention süresi de mevcut uygulamada otomatik olarak uygulanmamaktadır.
-
-### Backup doğrulaması
-
-Backup'ın kullanılabilirliğini yalnızca dosyanın oluşmasına bakarak değerlendirmem.
-
-Doğrulama için:
-
-1. `mongodump` çıktısı ve document count kontrol edilir.
-2. Restore işlemi temiz bir target üzerinde test edilir.
-3. `mongorestore` sonucu ve hata sayısı kontrol edilir.
-4. Collection ve document count doğrulanır.
-5. Uygulama üzerinden verinin tekrar okunabildiği doğrulanır.
-
-Bu case kapsamında bu adımlar gerçek MongoDB Atlas verisi üzerinde gerçekleştirilmiştir.
-
-### Production yaklaşımı
-
-Production ortamında:
-
-* Managed MongoDB backup/snapshot,
-* Encrypted off-site/object storage,
-* Otomatik retention policy,
-* Access control,
-* Periyodik restore testleri,
-* Backup monitoring ve alerting
-
-kullanırdım.
-
-Ayrıntılı backup/restore runbook'u `docs/backup-restore.md` içerisindedir. Çalışma kanıtları `TESLIM_KANITLARI.md` içerisinde 17–25 numaralı ekran görüntüleri ile sunulmaktadır.
+- **Kayıt oluşturma 1:** `docs/screenshots/29-backup-record-created-01.png`
+- **Kayıt oluşturma 2:** `docs/screenshots/30-backup-record-created-02.png`
+- **Yedek alma (görsel veya terminal çıktısı):** `docs/screenshots/31-backup-taken.png`
+- **Collection veya veritabanının silinmesi (görsel veya terminal çıktısı)** `docs/screenshots/32-collection-dropped.png`
+- **Verinin kaybolduğunun gösterilmesi (arayüz görseli):** `docs/screenshots/33-data-missing-after-drop-ui.png`
+- **Verinin kaybolduğunun gösterilmesi (veritabanı çıktısı):** `docs/screenshots/34-data-missing-after-drop-database.png`
+- **Yedekten geri yükleme (görsel veya terminal çıktısı):** `docs/screenshots/35-restore-executed.png`
+- **Verinin geri geldiğinin doğrulanması (arayüz görseli):** `docs/screenshots/36-data-restored-verified-ui.png`
+- **Verinin geri geldiğinin doğrulanması (veritabanı çıktısı (1)):** `docs/screenshots/37-data-restored-verified-database-01.png`
+- **Verinin geri geldiğinin doğrulanması (veritabanı çıktısı (2)):** `docs/screenshots/38-data-restored-verified-database-02.png`
 
 ---
 
 ## Ek Notlar
 
-Case kapsamında iki üst kriter özellikle uygulanmıştır.
+Case kapsamında özellikle belirtmek istediğiniz ek kararlar, sınırlamalar veya sonraki geliştirme adımları varsa bu bölümde açıklayabilirsiniz.
 
-İlk olarak, `scripts/check-alerts.ps1` ile iki kritik alarm senaryosu tanımlanmış ve test edilmiştir. Böylece yalnızca log üretmek yerine doğrulanabilir alarm senaryoları oluşturulmuştur.
+**Cevap:**
 
-İkinci olarak container ve Kubernetes güvenliği güçlendirilmiştir. Backend, frontend ve ETL container'ları non-root kullanıcılarla çalıştırılmış; privilege escalation kapatılmış ve tüm Linux capabilities drop edilmiştir.
+Çalışmanın son aşamasında yerel Kubernetes doğrulamasına ek olarak uygulama gerçek AWS EKS ortamına taşınmış ve GitHub Actions üzerinden otomatik cloud deployment sağlanmıştır.
 
-CI/CD deployment aşamasında production database'e bağımlı kalmamak amacıyla geçici Kind cluster içerisinde ephemeral MongoDB kullanılmıştır. Böylece GitHub Actions runner IP'sinin MongoDB Atlas allowlist'inde bulunmaması gibi dış ağ bağımlılıkları deployment doğrulamasını engellememektedir.
+CI/CD akışında GitHub OIDC ile AWS IAM Role kullanılmış, image'lar commit SHA ile Amazon ECR'a gönderilmiş ve aynı sürümler EKS'e deploy edilmiştir.
 
-Bu CI MongoDB yalnızca test/deployment validation amacıyla kullanılmakta, normal uygulama deployment'ındaki MongoDB Atlas veri katmanının yerini almamaktadır.
+Mevcut çözüm case kapsamındaki gereksinimleri karşılayacak şekilde tamamlanmıştır. Daha ileri production ihtiyaçları olarak altyapının tamamen IaC ile yönetilmesi, gelişmiş monitoring ve autoscaling, merkezi secret management ve gelişmiş disaster recovery sonraki geliştirme alanları olarak değerlendirilebilir.

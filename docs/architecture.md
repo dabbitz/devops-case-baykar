@@ -2,49 +2,61 @@
 
 ## 1. Genel Bakış
 
-Bu proje, React tabanlı frontend, Node.js/Express backend, Python tabanlı ETL ve MongoDB veri katmanından oluşan konteynırize edilmiş bir MERN uygulamasıdır.
+Bu proje; React + NGINX frontend, Node.js/Express backend, Python ETL ve MongoDB Atlas veri katmanından oluşan konteynırize bir uygulamadır.
 
-Uygulama Docker image'ları ile paketlenmekte ve Kubernetes üzerinde ayrı workload'lar olarak çalıştırılmaktadır. Dış erişim Kubernetes üzerindeki Envoy Gateway ve HTTPRoute üzerinden sağlanmaktadır.
+Ana deployment ortamı **AWS EKS**'tir. Frontend ve backend Kubernetes `Deployment` kaynakları olarak, ETL ise saatlik `CronJob` olarak çalıştırılmaktadır.
 
-Python ETL, GitHub API üzerinden repository bilgilerini saatlik olarak almakta ve MongoDB'ye `github_id` alanı üzerinden yeni kayıt veya güncelleme işlemi gerçekleştirmektedir.
+AWS ortamında dış HTTP erişimi Envoy Gateway ve HTTPRoute üzerinden sağlanmakta, Envoy Gateway'in `LoadBalancer` Service'i AWS Elastic Load Balancer tarafından dışarıya açılmaktadır.
 
-CI/CD sürecinde GitHub Actions kullanılarak uygulama build ve validation işlemlerinden geçirilmekte, başarılı CI sonrasında geçici bir Kind Kubernetes cluster'ında deployment ve healthcheck doğrulamaları gerçekleştirilmektedir.
+Python ETL, GitHub API üzerinden repository bilgilerini almakta ve `github_id` alanı üzerinden MongoDB'deki `github_repositories` collection'ında insert/update işlemi gerçekleştirmektedir.
+
+CI/CD GitHub Actions üzerinden çalışır. `main` branch'ine yapılan başarılı push sonrasında GitHub OIDC ile AWS IAM Role alınır, image'lar Amazon ECR'a gönderilir ve AWS EKS'e deploy edilir.
+
+Yerel Docker Desktop Kubernetes ortamı ise geliştirme ve doğrulama amacıyla korunmuştur.
 
 ---
 
-## 2. Mimari Diyagram
+## 2. Genel Mimari
 
 ```mermaid
 flowchart TB
 
-    User["Kullanıcı / Browser"]
+    User["User / Browser"]
+
+    LB["AWS Elastic Load Balancer"]
+
     Gateway["Envoy Gateway"]
+
     Route["HTTPRoute"]
+
     FrontendSvc["frontend-service<br/>ClusterIP :80"]
+
     Frontend["React + NGINX"]
+
     BackendSvc["backend-service<br/>ClusterIP :5050"]
+
     Backend["Node.js + Express<br/>REST API + CRUD"]
 
-    User --> Gateway
+    Mongo[("MongoDB Atlas<br/>sample_training")]
+
+    User --> LB
+    LB --> Gateway
     Gateway --> Route
+
     Route --> FrontendSvc
     FrontendSvc --> Frontend
-    Frontend -->|"API requests"| BackendSvc
+
+    Frontend -->|"API requests /api/*"| BackendSvc
     BackendSvc --> Backend
 
-    subgraph ETL["Python ETL"]
-        direction LR
+    Backend -->|"CRUD"| Mongo
+
+    subgraph ETL["Python ETL - Kubernetes CronJob"]
         GitHub["GitHub API"]
-        ETLJob["CronJob<br/>Her saat"]
+        ETLJob["ETL Job<br/>Hourly"]
         GitHub --> ETLJob
     end
 
-    subgraph DATA["Data Layer"]
-        direction TB
-        Mongo[("MongoDB Atlas<br/>sample_training")]
-    end
-
-    Backend -->|"CRUD"| Mongo
     ETLJob -->|"insert / update<br/>github_id"| Mongo
 ```
 
@@ -54,18 +66,27 @@ flowchart TB
 
 ### 3.1 Frontend
 
-Frontend React ile geliştirilmiştir ve production container içerisinde NGINX tarafından sunulmaktadır.
+Frontend React ile geliştirilmiş ve production container içerisinde NGINX tarafından sunulmaktadır.
 
-Frontend'in görevi:
+Görevleri:
 
-- Kullanıcı arayüzünü sunmak
-- Record oluşturma ve güncelleme işlemlerini başlatmak
-- Backend API'lerine HTTP istekleri göndermek
-- `/api` path'i üzerinden backend'e erişmek
+* Kullanıcı arayüzünü sunmak
+* Record oluşturma ve güncelleme işlemlerini başlatmak
+* Backend API'lerine HTTP istekleri göndermek
 
-Frontend Kubernetes üzerinde `frontend` Deployment ve `frontend-service` Service olarak çalışmaktadır.
+Frontend Kubernetes üzerinde:
 
-Service tipi `ClusterIP`'dir. Dış erişim doğrudan frontend Pod'una değil, Envoy Gateway ve HTTPRoute üzerinden Service'e yönlendirilir.
+```text
+frontend Deployment
+        ↓
+frontend-service
+        ↓
+React + NGINX
+```
+
+şeklinde çalışmaktadır.
+
+`frontend-service` `ClusterIP` tipindedir; dış erişim doğrudan Pod'a değil Gateway üzerinden sağlanmaktadır.
 
 ---
 
@@ -75,23 +96,33 @@ Backend Node.js ve Express kullanmaktadır.
 
 Başlıca görevleri:
 
-- REST API sağlamak
-- Record CRUD işlemlerini gerçekleştirmek
-- Gelen verileri doğrulamak
-- MongoDB ile iletişim kurmak
-- Healthcheck endpoint'i sağlamak
+* REST API sağlamak
+* Record CRUD işlemlerini gerçekleştirmek
+* Input ve ObjectId validation yapmak
+* MongoDB ile iletişim kurmak
+* Healthcheck endpoint'i sağlamak
 
-Backend Kubernetes üzerinde `backend` Deployment ve `backend-service` Service olarak çalışmaktadır.
+Backend Kubernetes üzerinde:
 
-Backend Service tipi `ClusterIP`'dir ve frontend tarafından Kubernetes iç ağından erişilmektedir.
+```text
+backend Deployment
+        ↓
+backend-service
+        ↓
+Node.js / Express
+```
+
+şeklinde çalışmaktadır.
+
+`backend-service` `ClusterIP` tipindedir ve doğrudan internete açılmamıştır.
 
 ---
 
 ### 3.3 MongoDB
 
-Uygulamanın kalıcı verileri MongoDB Atlas üzerinde tutulmaktadır.
+Normal uygulama deployment'ında kalıcı veri katmanı olarak **MongoDB Atlas** kullanılmaktadır.
 
-Kullanılan database:
+Database:
 
 ```text
 sample_training
@@ -108,73 +139,83 @@ Backend `records` collection'ı üzerinden uygulama kayıtlarını yönetmektedi
 
 Python ETL ise `github_repositories` collection'ını kullanmaktadır.
 
-MongoDB bağlantı bilgileri source code içerisinde sabitlenmemiştir ve environment variable / Kubernetes Secret üzerinden sağlanmaktadır.
+MongoDB bağlantı bilgileri source code içerisinde hardcode edilmemiş ve environment variable / Kubernetes Secret üzerinden sağlanmıştır.
 
 ---
 
 ### 3.4 Python ETL
 
-Python ETL, GitHub API'den repository bilgilerini almakta ve MongoDB'ye aktarmaktadır.
+Python ETL, GitHub API'den repository bilgilerini alarak MongoDB'ye aktarmaktadır.
 
 Akış:
 
 ```text
-GitHub API
-    ↓
+Kubernetes CronJob
+        ↓
 Python ETL
-    ↓
-MongoDB
+        ↓
+GitHub API
+        ↓
+Repository data
+        ↓
+MongoDB Atlas
 ```
 
-ETL Kubernetes üzerinde CronJob olarak çalışmaktadır.
-
-Schedule:
+ETL schedule:
 
 ```text
 0 * * * *
 ```
 
-Bu schedule ETL'nin her saat başında çalışmasını sağlar.
+CronJob `Europe/Istanbul` timezone'u kullanarak saatlik çalışmaktadır.
 
-Duplicate kayıtların oluşmasını önlemek amacıyla GitHub repository ID'si olan `github_id` benzersiz kayıt anahtarı olarak kullanılmaktadır.
+Duplicate kayıtları önlemek için GitHub repository ID'si olan `github_id` benzersiz kayıt anahtarı olarak kullanılmaktadır.
 
-Aynı repository tekrar işlendiğinde mevcut kayıt güncellenmektedir.
+Aynı repository tekrar işlendiğinde `upsert=True` ile mevcut document güncellenmektedir.
 
 ---
 
-## 4. İstek Akışı
+## 4. Web İstek Akışı
 
-Normal web uygulaması trafiği aşağıdaki şekilde ilerlemektedir:
+AWS EKS üzerindeki normal kullanıcı trafiği:
 
 ```text
 Browser
-  ↓
+   ↓
+AWS Elastic Load Balancer
+   ↓
 Envoy Gateway
-  ↓
+   ↓
 HTTPRoute
-  ↓
+   ↓
 frontend-service
-  ↓
+   ↓
 React / NGINX
-  ↓
+   ↓
 /api/*
-  ↓
+   ↓
 backend-service
-  ↓
+   ↓
 Node.js / Express
-  ↓
+   ↓
 MongoDB Atlas
 ```
 
-Frontend container içerisindeki NGINX, `/api/` ile başlayan istekleri Kubernetes içerisindeki `backend-service:5050` adresine yönlendirmektedir.
+Frontend container içerisindeki NGINX, `/api/` ile başlayan istekleri Kubernetes içerisindeki:
 
-Bu yapı sayesinde backend Service doğrudan internete açılmamaktadır.
+```text
+backend-service:5050
+```
+
+adresine yönlendirmektedir.
+
+Bu yapı sayesinde backend Service doğrudan internetten erişilebilir durumda değildir.
 
 ---
 
 ## 5. ETL Veri Akışı
 
-ETL sürecinde veri akışı şöyledir:
+ETL veri akışı web request akışından bağımsızdır:
 
 ```text
 Kubernetes CronJob
@@ -185,161 +226,168 @@ GitHub API
         ↓
 Repository JSON
         ↓
-MongoDB
+MongoDB Atlas
         ↓
 github_repositories
 ```
 
-Repository'nin GitHub ID'si `github_id` alanına yazılmaktadır.
-
-Örnek:
+Repository'nin GitHub ID'si:
 
 ```text
 github_id = 1361100555
 ```
 
-Repository tekrar işlendiğinde yeni document oluşturmak yerine mevcut document güncellenmektedir.
+alanında tutulmaktadır.
+
+Aynı repository tekrar işlendiğinde yeni bir document oluşturulmaz; mevcut document güncellenir.
 
 ---
 
 ## 6. Kubernetes Kaynakları
 
-Uygulama aşağıdaki temel Kubernetes kaynaklarından oluşmaktadır:
+AWS EKS ortamında kullanılan temel kaynaklar:
 
-| Kaynak | Görev |
-|---|---|
-| Namespace | Uygulama kaynaklarını izole etmek |
-| Backend Deployment | Node.js/Express backend çalıştırmak |
-| Backend Service | Backend'e cluster içi erişim sağlamak |
-| Frontend Deployment | React/NGINX frontend çalıştırmak |
-| Frontend Service | Frontend'e cluster içi erişim sağlamak |
-| ETL CronJob | Saatlik Python ETL çalıştırmak |
-| Secret | Credential ve bağlantı bilgilerini container'lara aktarmak |
-| GatewayClass | Envoy Gateway controller'ını kullanmak |
-| Gateway | Dış HTTP erişim noktası sağlamak |
-| HTTPRoute | Gelen HTTP trafiğini frontend Service'e yönlendirmek |
+| Kaynak              | Görev                                                     |
+| ------------------- | --------------------------------------------------------- |
+| Namespace           | Uygulama kaynaklarını izole etmek                         |
+| Backend Deployment  | Node.js/Express backend çalıştırmak                       |
+| Backend Service     | Backend'e cluster içi erişim sağlamak                     |
+| Frontend Deployment | React/NGINX frontend çalıştırmak                          |
+| Frontend Service    | Frontend'e cluster içi erişim sağlamak                    |
+| ETL CronJob         | Saatlik Python ETL çalıştırmak                            |
+| Secret              | Credential ve bağlantı bilgilerini workload'lara aktarmak |
+| GatewayClass        | Envoy Gateway controller'ını kullanmak                    |
+| Gateway             | Dış HTTP erişim noktası sağlamak                          |
+| HTTPRoute           | HTTP trafiğini Service'lere yönlendirmek                  |
 
-Frontend ve backend stateless workload olarak Deployment ile çalıştırılmaktadır.
+Frontend ve backend stateless `Deployment` olarak çalıştırılmaktadır.
 
-ETL ise sürekli çalışan bir servis yerine periyodik iş yükü olduğu için CronJob olarak yapılandırılmıştır.
+ETL periyodik bir workload olduğu için `CronJob` olarak yapılandırılmıştır.
+
+MongoDB normal deployment'ta Kubernetes workload'u olarak çalıştırılmamaktadır; MongoDB Atlas kullanılmaktadır.
 
 ---
 
 ## 7. Ağ ve Erişim Modeli
 
-Uygulamadaki Kubernetes Service'leri `ClusterIP` tipindedir.
-
-Bu nedenle:
-
-- Backend doğrudan internete açılmaz.
-- Frontend Service doğrudan NodePort olarak expose edilmez.
-- Dış HTTP trafiği Envoy Gateway üzerinden alınır.
-- HTTPRoute trafiği frontend Service'e yönlendirir.
-- Frontend NGINX, `/api/` isteklerini backend Service'e iletir.
-
-Temel erişim modeli:
+Frontend ve backend Service'leri `ClusterIP` tipindedir.
 
 ```text
-Internet / Browser
-        ↓
+Internet
+   ↓
+AWS Load Balancer
+   ↓
 Envoy Gateway
-        ↓
+   ↓
 HTTPRoute
-        ↓
-Frontend Service
-        ↓
-Frontend Pod
-        ↓
-Backend Service
-        ↓
-Backend Pod
-        ↓
-MongoDB Atlas
+   ├── /      → frontend-service
+   └── /api/* → backend-service
 ```
+
+Bu yapı sayesinde:
+
+- Backend doğrudan internete açılmaz.
+- Frontend Service NodePort olarak expose edilmez.
+- Her servis için ayrı bir cloud Load Balancer oluşturulmaz.
+- Dış trafik merkezi olarak Envoy Gateway üzerinden yönetilir.
+
+MongoDB Atlas ise cluster dışındaki managed database olarak kullanılır.
 
 ---
 
 ## 8. Konfigürasyon ve Secret Yönetimi
 
-Hassas bilgilerin source code veya Docker image içerisinde tutulmaması hedeflenmiştir.
+Hassas bilgiler source code veya Docker image içerisinde tutulmamaktadır.
 
-Kullanılan yaklaşım:
+Temel yaklaşım:
 
 ```text
-Environment Variables
-        +
-Kubernetes Secrets
-        ↓
-Application Containers
+GitHub Actions Secrets / .env
+            ↓
+      Kubernetes Secret
+            ↓
+    Application Containers
 ```
 
-Örnek hassas bilgiler:
+Başlıca secret değerleri:
 
-- MongoDB connection URI
-- GitHub API token
+```text
+ATLAS_URI
+GITHUB_TOKEN
+MONGODB_URI
+```
 
-Bu bilgiler Kubernetes Secret kaynakları üzerinden container'lara aktarılmaktadır.
+Local Kubernetes deployment'ında `setup-k8s.ps1` `.env` değerlerinden Secret kaynaklarını oluşturur.
 
-Git repository içerisinde gerçek credential, token veya private key tutulmamaktadır.
+AWS EKS deployment'ında GitHub Actions Secrets kullanılarak Kubernetes Secret kaynakları güncellenir.
+
+Gerçek credential, token veya private key repository içerisinde tutulmamaktadır.
 
 ---
 
 ## 9. Container Güvenliği
 
-Container'lar root kullanıcı ile çalıştırılmamaktadır.
+Frontend, backend ve ETL container'ları root kullanıcıyla çalıştırılmamaktadır.
 
-Kubernetes workload'larında:
+Kullanıcılar:
 
 ```text
-Backend → node / UID 1000
+Backend  → node / UID 1000
 Frontend → nginx / UID 101
-ETL → appuser / UID 10001
+ETL      → appuser / UID 10001
 ```
 
-Ayrıca aşağıdaki güvenlik kontrolleri uygulanmıştır:
+Kubernetes workload'larında ayrıca:
 
-```text
+```yaml
 runAsNonRoot: true
+
 allowPrivilegeEscalation: false
-capabilities.drop:
-  - ALL
+
+capabilities:
+  drop:
+    - ALL
 ```
 
-Bu ayarlar container'ların sahip olduğu gereksiz Linux yetkilerini azaltmak ve privilege escalation riskini sınırlandırmak amacıyla kullanılmıştır.
+ayarları kullanılmaktadır.
+
+Bu kontroller container privilege seviyesini azaltmak ve privilege escalation riskini sınırlandırmak amacıyla uygulanmıştır.
 
 ---
 
 ## 10. Healthcheck ve Operasyonel Doğrulama
 
-Backend aşağıdaki endpoint üzerinden kontrol edilmektedir:
+Backend healthcheck endpoint'i:
 
 ```text
 GET /healthcheck/
 ```
 
-CI/CD deployment aşamasında backend health endpoint'i ve frontend HTTP endpoint'i doğrulanmaktadır.
+şeklindedir.
 
-Deployment doğrulaması:
+CI/CD deployment sonrasında:
 
 ```text
-Build
-  ↓
-Deploy
-  ↓
 Kubernetes rollout
-  ↓
+       ↓
 Backend healthcheck
-  ↓
+       ↓
 Frontend HTTP check
 ```
 
-Herhangi bir kritik build, validation veya deployment doğrulaması başarısız olduğunda ilgili CI/CD job'ı başarısız olarak sonuçlanmaktadır.
+adımları ile deployment doğrulanmaktadır.
+
+Ayrıca ETL CronJob ve Job geçmişi Kubernetes üzerinden kontrol edilmektedir.
+
+Mevcut backend healthcheck HTTP erişilebilirliğini doğrulamaktadır; MongoDB dependency'sini doğrudan kontrol eden ayrı bir Kubernetes readiness/liveness probe bulunmamaktadır.
 
 ---
 
 ## 11. CI/CD Mimarisi
 
-CI/CD GitHub Actions üzerinden çalışmaktadır.
+CI/CD GitHub Actions üzerinde çalışmaktadır.
+
+Pull Request veya push sırasında önce validation aşaması çalışır:
 
 ```text
 Git Push / Pull Request
@@ -352,84 +400,239 @@ Backend validation
           ↓
 Python validation
           ↓
-Docker image build
-          ↓
-CI başarılı
-          ↓
-Kind Kubernetes Cluster
-          ↓
-Image load
-          ↓
-Kubernetes deployment
-          ↓
-Rollout verification
-          ↓
+Docker image build validation
+```
+
+`main` branch'ine başarılı push sonrasında gerçek cloud deployment gerçekleştirilir:
+
+```text
+main push
+   ↓
+CI validation
+   ↓
+GitHub OIDC
+   ↓
+AWS IAM Role
+   ↓
+Amazon ECR
+   ↓
+AWS EKS
+   ↓
+Kubernetes rollout
+   ↓
+Gateway / HTTPRoute
+   ↓
 Backend healthcheck
-          ↓
+   ↓
 Frontend HTTP check
 ```
 
-Deployment job'ında kullanılan Kind cluster geçici CI ortamında oluşturulmaktadır.
+Deployment job'ı:
 
-Production ortamında aynı uygulama akışının kalıcı bir Kubernetes cluster'ına veya cloud/VM tabanlı Kubernetes ortamına deploy edilmesi hedeflenebilir.
+- GitHub OIDC ile AWS IAM Role'u assume eder.
+- Frontend, backend ve ETL image'larını build eder.
+- Image'ları Git commit SHA ile tag'ler.
+- Image'ları Amazon ECR'a push eder.
+- EKS kubeconfig'i oluşturur.
+- Kubernetes Secret kaynaklarını günceller.
+- EKS manifestlerini uygular.
+- Gateway ve HTTPRoute kaynaklarını uygular.
+- Rollout ve dış erişim kontrollerini gerçekleştirir.
+
+CI validation başarısız olursa deployment job'ı çalıştırılmaz.
 
 ---
 
-## 12. Veri Kalıcılığı ve Backup
+## 12. AWS EKS ve Amazon ECR
 
-MongoDB uygulamanın kalıcı veri katmanıdır ve MongoDB Atlas üzerinde tutulmaktadır.
+Ana Kubernetes ortamı:
 
-Backup senaryosunda:
+```text
+Cluster:
+devops-case-eks
+
+Region:
+eu-central-1
+
+Managed Node Group:
+devops-workers
+
+Node Type:
+t3.small
+```
+
+EKS için cloud-specific manifestler:
+
+```text
+k8s/eks/
+```
+
+altında bulunmaktadır.
+
+Amazon ECR üzerinde üç ayrı image repository kullanılmaktadır:
+
+```text
+devops-case-backend
+devops-case-frontend
+devops-case-etl
+```
+
+Image'lar Git commit SHA ile tag'lenmektedir.
+
+Örnek:
+
+```text
+devops-case-etl:<commit-sha>
+```
+
+Bu yapı deployed image ile source commit arasında doğrudan ilişki kurulmasını sağlar.
+
+---
+
+## 13. GitHub OIDC ve AWS Authentication
+
+GitHub Actions AWS erişiminde uzun ömürlü AWS access key kullanılmamaktadır.
+
+Authentication akışı:
+
+```text
+GitHub Actions
+      ↓
+GitHub OIDC token
+      ↓
+GitHubActions-EKS-Deploy IAM Role
+      ↓
+Temporary AWS credentials
+      ↓
+Amazon ECR + AWS EKS
+```
+
+IAM Role'un OIDC trust policy'si ilgili GitHub repository ve `main` branch'i ile sınırlandırılmıştır.
+
+EKS tarafında ayrıca EKS Access Entry ve namespace-scoped Kubernetes RBAC kullanılmaktadır.
+
+---
+
+## 14. Kubernetes RBAC
+
+GitHub Actions IAM Role'u EKS Access Entry aracılığıyla:
+
+```text
+github-actions-deploy
+```
+
+Kubernetes grubuna bağlanmıştır.
+
+Bu grup için:
+
+```text
+devops-case
+```
+
+namespace'i ile sınırlı `Role` ve `RoleBinding` tanımlanmıştır.
+
+GitHub Actions'a `cluster-admin` yetkisi verilmemiştir.
+
+RBAC manifesti:
+
+```text
+k8s/eks/cd-rbac.yaml
+```
+
+---
+
+## 15. Veri Kalıcılığı ve Backup
+
+MongoDB, uygulamanın kalıcı veri katmanıdır ve MongoDB Atlas üzerinde tutulmaktadır.
+
+Backup:
 
 ```text
 MongoDB Atlas
       ↓
 mongodump
       ↓
-backups/sample-training-backup
+backups/sample-training-backup/
 ```
 
-Restore işlemi:
+Restore:
 
 ```text
-backup files
+Backup files
       ↓
 mongorestore
       ↓
 MongoDB Atlas
       ↓
-Web UI / database verification
+Database / UI verification
 ```
 
-Backup ve restore ayrıntıları `docs/backup-restore.md` içerisinde dokümante edilmiştir.
+Backup ve restore süreci gerçek veri üzerinde uçtan uca test edilmiştir.
+
+Detaylı yöntem, komutlar, retention, RPO/RTO ve production sınırlamaları:
+
+```text
+docs/backup-restore.md
+```
 
 ---
 
-## 13. Sistem Özeti
+## 16. Yerel Kubernetes Ortamı
 
-Sistem aşağıdaki temel sorumluluklara ayrılmıştır:
+AWS EKS ana deployment ortamıdır.
+
+Docker Desktop Kubernetes ise local geliştirme ve doğrulama amacıyla korunmuştur.
+
+Local kaynaklar:
+
+```text
+k8s/
+```
+
+Local Kubernetes kurulumu:
+
+```powershell
+.\setup-k8s.ps1
+```
+
+Bu yapı cloud deployment'ın alternatifi değil, geliştirme ve doğrulama ortamıdır.
+
+---
+
+## 17. Sistem Özeti
+
+Sistem sorumlulukları:
 
 ```text
 Frontend
-    → kullanıcı arayüzü
+    → User interface
 
 Backend
-    → REST API + business logic
+    → REST API + CRUD + validation
 
-MongoDB
-    → kalıcı veri
+MongoDB Atlas
+    → Persistent data layer
 
 Python ETL
-    → GitHub API → MongoDB veri aktarımı
+    → GitHub API → MongoDB
 
 Kubernetes
-    → workload orchestration
+    → Workload orchestration
 
 Envoy Gateway
-    → dış HTTP erişimi
+    → HTTP routing
+
+AWS Load Balancer
+    → External access
+
+Amazon ECR
+    → Container image registry
 
 GitHub Actions
-    → CI/CD otomasyonu
+    → CI/CD automation
+
+GitHub OIDC + AWS IAM
+    → Cloud authentication
 ```
 
-Bu ayrıştırma sayesinde frontend, backend ve ETL bileşenleri bağımsız container image'ları ve Kubernetes workload'ları olarak yönetilebilmektedir.
+Bu ayrıştırma sayesinde frontend, backend ve ETL bağımsız container image'ları ve Kubernetes workload'ları olarak yönetilebilmekte; CI/CD üzerinden source commit ile ilişkilendirilmiş image'lar AWS EKS'e otomatik olarak deploy edilebilmektedir.

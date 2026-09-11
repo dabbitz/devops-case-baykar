@@ -1,591 +1,451 @@
 # CASE END ANSWERS
 
+Answer all questions below by relating them directly to your implementation.
+
+Answers should be concise, specific, and detailed enough to explain your technical decisions. Where appropriate, reference the relevant source file, manifest, pipeline step, or document path.
+
+---
+
 ## Candidate Information
 
-* **Full Name:** Tunahan Değirmencioğlu
-* **Repository URL:** `https://github.com/dabbitz/devops-case-baykar.git`
-* **Completion Date:** 10.09.2026
-* **Target Environment Used:** Local Kubernetes (Docker Desktop Kubernetes)
+- **Full name:** Tunahan Değirmencioğlu
+- **Repository URL:** `https://github.com/dabbitz/devops-case-baykar.git`
+- **Completion date:** 13.09.2026
+- **Target environment used:** AWS EKS (`devops-case-eks`, `eu-central-1`)
 
 ---
 
 ## 1. Architecture and Request Flow
 
-The system consists of a React + NGINX frontend, Node.js/Express backend, Python ETL, and MongoDB Atlas components. The frontend and backend run as Deployments on Kubernetes, while the ETL runs as an hourly CronJob. External HTTP access is provided through Envoy Gateway and HTTPRoute.
+Explain the architecture you implemented and the path a user request follows from the frontend through the backend to the database.
 
-The flow of a user request is as follows:
+Also prepare an architecture diagram showing the system components, connections between components, traffic flow, and external access points, and add it to the project repository as one of the following:
 
-```text
+- `docs/architecture.md`
+- `docs/architecture.pdf`
+
+The diagram may be created with Mermaid, Draw.io, Excalidraw, or a similar tool. Include the editable source file in the repository as well.
+
+**Answer:**
+
+The primary deployment runs on AWS EKS. The frontend and backend run as `Deployment + ClusterIP Service`, while the Python ETL runs as an hourly `CronJob`.
+
+```text id="1w0s7k"
 User / Browser
-        ↓
+      ↓
+AWS Load Balancer
+      ↓
 Envoy Gateway
-        ↓
+      ↓
 HTTPRoute
-        ↓
-frontend-service
-        ↓
-React + NGINX
-        ↓
-/api/*
-        ↓
-backend-service
-        ↓
-Node.js / Express
-        ↓
-MongoDB Atlas
+   ┌──┴────┐
+   ↓       ↓
+Frontend Backend
+Service  Service
+   ↓       ↓
+React    Node.js
++ NGINX  + Express
+             ↓
+        MongoDB Atlas
 ```
 
-NGINX inside the frontend redirects `/api/` requests to `backend-service:5050` inside Kubernetes. The backend performs record CRUD operations in the `sample_training` database on MongoDB Atlas.
+The frontend NGINX forwards `/api/` requests to `backend-service:5050`. The backend performs record CRUD operations in the `sample_training` database on MongoDB Atlas.
 
-Independently of this flow, the Python ETL retrieves repository information from the GitHub API and performs insert/update operations in the MongoDB `github_repositories` collection using `github_id`.
+The ETL separately retrieves repository information from the GitHub API and performs an upsert on the `github_repositories` collection using `github_id`.
 
-The architecture diagram is available in `docs/architecture.md`.
+Detailed architecture: `docs/architecture.md`
 
 ---
 
 ## 2. Critical Findings and Prioritization
 
-The three most critical issues identified in the starter project were:
+What were the three most critical issues you identified in the starter projects? Which impact and risk criteria did you use to prioritize them?
 
-1. **Frontend API address was hardcoded**
+**Answer:**
 
-   * The frontend was directly dependent on `http://localhost:5050`.
-   * This prevented deployment flexibility because different endpoints are required in containerized and Kubernetes environments.
-   * It was changed to be managed through configuration.
+The three priority issues were:
 
-2. **Insufficient input validation and ObjectId validation on the backend**
+1. **Hardcoded frontend API address:** The localhost dependency reduced deployment portability. The API address was changed to be managed through configuration/environment variables.
+2. **Input validation and ObjectId validation:** Server-side validation and ObjectId checks were added to prevent invalid requests from reaching the database layer.
+3. **Improper handling of MongoDB connection failures:** The backend was changed to fail fast when the MongoDB connection cannot be established.
 
-   * Invalid or missing fields could reach the database layer directly.
-   * The issue in ObjectId validation could cause invalid requests to be handled incorrectly.
-   * Server-side validation and ObjectId validation were added.
+Prioritization was based on production impact, reliability, security, deployment portability, and data-access risks.
 
-3. **Database connection failures were not handled in a controlled manner**
-
-   * Initially, the application could continue running even if the MongoDB connection failed.
-   * This could result in the service appearing healthy while database operations were failing.
-   * The backend connection logic was changed to fail fast.
-
-Prioritization was based on **production impact, reliability, deployment portability, and risk to data access**. In particular, a service that appears to be running while being unable to access its data layer was considered a higher priority.
-
-The details are documented in `docs/findings.md`.
+Details: `docs/findings.md`
 
 ---
 
 ## 3. Items Left Out of Scope
 
-The following topics were not implemented within the current case scope or were left at the production-design level:
+Which issues did you intentionally leave unresolved or out of scope? Explain the reasons for these decisions.
 
-* Terraform or another full IaC solution was not used. Kubernetes manifests were considered sufficient for the scope of the case.
-* An application Helm chart was not created. Manifest-based deployment was preferred because it has lower scope and introduces less additional complexity.
-* A full monitoring stack such as Prometheus/Grafana was not deployed.
-* HPA, PDB, and advanced autoscaling policies were not implemented.
-* GitOps, canary, or blue/green deployment was not implemented.
-* Production-level automated, off-site, and long-term backup storage was not configured.
-* MongoDB was not deployed as a Kubernetes StatefulSet; MongoDB Atlas was used as the persistent production data layer.
+**Answer:**
 
-The main reason for these decisions was to complete the core DevOps functions required by the case in a working and verifiable manner without introducing unnecessary operational complexity.
+The core case requirements have been completed, while some production-level features were left out of scope.
+
+For example, full IaC with Terraform/OpenTofu, Prometheus/Grafana, HPA/PDB, GitOps, canary/blue-green deployment, automated off-site backup retention, and distributed tracing were not implemented.
+
+At the same time, the solution was extended with AWS EKS, Amazon ECR, GitHub OIDC, IAM, EKS RBAC, Helm-based Envoy Gateway, non-root container hardening, and verifiable alert checks.
+
+These omitted areas can be added as separate scaling, observability, and disaster recovery layers in a production environment when required.
 
 ---
 
 ## 4. Target Environment Selection
 
-**Local Kubernetes on Docker Desktop** was used as the development and validation environment. This allowed the Kubernetes manifests, Service/Deployment/CronJob configurations, Envoy Gateway access, and container security settings to be tested directly in a Kubernetes environment.
+Why did you choose a cloud environment or a virtual machine? Which components or approaches would you use differently in a real production environment?
 
-In addition, a temporary **Kind Kubernetes cluster** is created on GitHub Actions for deployment validation in the CI/CD pipeline. This allows the deployment steps to be validated in the CI environment rather than depending only on the developer's machine.
+**Answer:**
 
-In a real production environment, I would use:
+AWS EKS was selected because the application is container-based and the frontend, backend, and periodic ETL workloads were intended to run on managed Kubernetes in a real cloud environment.
 
-* A persistent cloud- or Linux VM-based Kubernetes cluster,
-* Persistent and accessible ingress/gateway infrastructure,
-* Managed MongoDB / MongoDB Atlas,
-* TLS and domain management,
-* Centralized secret management,
-* Monitoring and alerting infrastructure,
-* A persistent container registry,
-* Automated backup and off-site retention
+This allowed Amazon ECR, AWS IAM, GitHub OIDC, EKS RBAC, Envoy Gateway, and the AWS Load Balancer to be used together.
 
-The current GitHub Actions deployment is intended for validation in a temporary Kind cluster and does not replace a persistent production Kubernetes cluster.
+In a production environment, I would additionally use Terraform/OpenTofu, HPA and node autoscaling, PDB/multi-node distribution, Prometheus/Grafana, centralized secret management, automated off-site backups, HTTPS/domain management, and controlled release strategies.
 
 ---
 
 ## 5. MongoDB Approach
 
-MongoDB is kept on **MongoDB Atlas** in the normal application deployment. This keeps the database separate from the Kubernetes workloads and allows persistent database operations to be handled by a managed service.
+Why did you choose your MongoDB deployment and service approach? Explain the alternatives you considered, along with their advantages, disadvantages, and operational trade-offs.
 
-The main alternatives considered were:
+**Answer:**
 
-| Approach                     | Advantage                                                                     | Disadvantage                                                                           |
-| ---------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| MongoDB Atlas                | Managed backup, operations, and persistent storage; independent of Kubernetes | External network dependency and access/allowlist management are required               |
-| Kubernetes StatefulSet + PVC | Full control within the cluster and a Kubernetes-native architecture          | Storage, backup, replication, and database operations remain the user's responsibility |
-| Temporary MongoDB Deployment | Simple for CI/testing                                                         | Not suitable for persistent data or production use                                     |
+MongoDB Atlas was used for the normal deployment. This separates database persistence and operations from the Kubernetes workloads.
 
-Therefore, Atlas was selected for normal production-like operation, while a temporary MongoDB Deployment was selected for the CI/CD environment to avoid external IP allowlist issues.
+Alternatives considered:
 
-`k8s/ci-mongodb.yaml` is used only for the ephemeral CI/test environment.
+| Approach          | Advantage                          | Disadvantage                                                |
+| ----------------- | ---------------------------------- | ----------------------------------------------------------- |
+| MongoDB Atlas     | Managed operations and persistence | External network dependency                                 |
+| StatefulSet + PVC | Kubernetes-native control          | Storage/backup/replication remain the user's responsibility |
+| Temporary MongoDB | Simple for CI/testing              | Not suitable for production data                            |
+
+Therefore, Atlas was used for the application deployment, while an ephemeral MongoDB instance was used for CI validation. `k8s/ci-mongodb.yaml` is only intended for CI/testing.
 
 ---
 
 ## 6. Helm or Manifest Management
 
-The application's own Kubernetes workloads are managed using plain manifest files.
+If you used Helm, explain why you selected it and what problem it solves in this project.
 
-For example:
+Describe its advantages and the additional complexity it introduces compared with alternatives such as plain Kubernetes manifests or Kustomize.
 
-```text
-k8s/
-├── namespace.yaml
-├── backend-deployment.yaml
-├── backend-service.yaml
-├── frontend-deployment.yaml
-├── frontend-service.yaml
-├── etl-cronjob.yaml
-└── ci-mongodb.yaml
-```
+If you did not use Helm, explain the method you selected and the reason for your choice.
 
-Plain manifests were preferred for this case because the number of workloads is small and there are not enough environment/variant differences to justify chart templating.
+**Answer:**
 
-Helm is used for **Envoy Gateway installation**. This allows a ready-made and complex third-party Kubernetes component to be installed through its official Helm chart instead of manually managing a large number of resources.
+The application's own Kubernetes resources are managed using plain manifest files. Since these resources do not require shared templating or multi-environment value management, direct manifest usage was preferred over creating a Helm chart.
 
-The advantages of Helm are reusable packaging, versioning, and dependency management. Its disadvantage is that it introduces additional templating and configuration complexity for a small and relatively static application.
+Comparison and rationale:
+
+- **Plain Manifests:** The easiest approach to read, understand, and troubleshoot. Since the project does not require multiple environments, the application's own resources are managed with plain YAML files.
+- **Helm / Kustomize:** Provide templating, parameter management, and versioning. However, using them for the application's own manifests would introduce unnecessary complexity at the current project scale, so they were used only where they provide clear value, such as managing third-party dependencies.
+
+Envoy Gateway is a third-party component consisting of multiple related Kubernetes resources, so it was installed using its official Helm chart.
 
 Therefore:
 
-* **Own application:** plain manifests
-* **Third-party Gateway:** Helm
-
-was the selected approach.
+```text
+Application workloads  → Kubernetes manifests
+Envoy Gateway          → Helm
+```
 
 ---
 
 ## 7. Kubernetes Service Types
 
-The frontend and backend Services in the application are defined as `ClusterIP`.
+Which criteria did you use to select Kubernetes Service types?
 
-### Backend
+For each service, explain why you chose `ClusterIP`, `NodePort`, `LoadBalancer`, `ExternalName`, or a headless Service. State which services should be accessible from outside the cluster and how you prevented unnecessary external exposure.
 
-`backend-service`:
+**Answer:**
 
-```text
-type: ClusterIP
-port: 5050
-```
+Service types were designed around **minimum external exposure (least exposure) and centralized traffic management**.
 
-The backend does not need to be directly accessible from outside the cluster. The frontend accesses the backend through the Kubernetes internal network.
-
-### Frontend
-
-`frontend-service`:
+`ClusterIP` is used for the frontend and backend:
 
 ```text
-type: ClusterIP
-port: 80
+frontend-service → ClusterIP :80
+backend-service  → ClusterIP :5050
 ```
 
-Instead of exposing the frontend directly as a NodePort or LoadBalancer, external HTTP traffic is received through Envoy Gateway.
+Application components should not be directly exposed to the internet. Therefore, NodePort, which exposes node ports, and per-service LoadBalancer Services, which would create additional cloud load balancers outside the gateway path, were not used.
 
-### External access
+Headless or ExternalName Services were also unnecessary because there is no requirement for custom DNS-based Pod discovery or external service proxying. External traffic is routed through AWS Load Balancer → Envoy Gateway → HTTPRoute → Services.
 
-External access follows:
+This prevents the backend from being directly exposed through NodePort or LoadBalancer.
 
-```text
-Internet / Browser
-        ↓
-Envoy Gateway
-        ↓
-HTTPRoute
-        ↓
-frontend-service
-```
-
-Therefore, NodePort and LoadBalancer were not used, reducing unnecessary direct external exposure.
-
-No Kubernetes Service is used for MongoDB; MongoDB Atlas is used as the external managed service in the normal deployment.
+Manifests: `k8s/` and `k8s/eks/`
 
 ---
 
 ## 8. Kubernetes Workload Types
 
-### Frontend
+Which criteria did you use to select workload types for the application components?
 
-The frontend is a stateless web workload. Because user data is not stored on the Pod filesystem, a `Deployment` was used.
+Explain why you used `Deployment`, `StatefulSet`, `Job`, `CronJob`, or another workload type for the frontend, backend, MongoDB, and ETL components.
 
-Advantages:
+Describe how you evaluated the following:
 
-* Replicas can be increased.
-* Recreated Pods are not expected to cause data loss.
-* Rolling updates are supported.
+- Stateless or stateful behavior
+- Persistent-storage requirements
+- Pod identity and ordered-execution requirements
+- Execution frequency
+- Restart behavior
+- Scalability requirements
 
-### Backend
+**Answer:**
 
-The backend is also a stateless REST API, so a `Deployment` was used.
-
-Persistent backend data is stored in MongoDB rather than inside the container.
-
-### MongoDB
-
-MongoDB is not run inside Kubernetes in the normal application deployment. Since MongoDB Atlas is used, StatefulSet and PVC management are separated from the application cluster.
-
-The MongoDB used in the CI/CD pipeline is only a temporary test environment and does not contain persistent production data.
-
-### ETL
-
-The ETL is a periodic workload, so a `CronJob` was used:
+- **Frontend → `Deployment`:** Stateless web workload; it requires no persistent storage, special Pod identity, or ordered execution. Supports replicas and rolling updates.
+- **Backend → `Deployment`:** Stateless REST API; persistent data is stored in MongoDB. No special Pod identity is required and it can scale horizontally.
+- **MongoDB:** MongoDB Atlas is used in the normal deployment, so a Kubernetes `StatefulSet` is not used. The CI MongoDB is only an ephemeral test workload.
+- **ETL → `CronJob`:** Runs hourly as a periodic workload. Each execution creates a separate `Job`; `Forbid` prevents overlapping executions and retries are supported on failure.
 
 ```text
 0 * * * *
 ```
 
-This causes the ETL to run at the beginning of every hour.
-
-Using a Deployment for the ETL would require a continuously running Pod and would therefore consume resources unnecessarily. CronJob also allows Kubernetes to use the Job retry mechanism when an execution fails.
-
-In addition:
-
-```text
-concurrencyPolicy: Forbid
-backoffLimit: 2
-restartPolicy: Never
-successfulJobsHistoryLimit: 3
-failedJobsHistoryLimit: 3
-```
-
-were configured.
+These choices consider stateless/stateful operation, persistence, Pod identity and ordering requirements, execution frequency, restart behavior, and scalability.
 
 ---
 
 ## 9. Configuration and Secret Management
 
-Sensitive information is not hardcoded in the source code.
+How did you manage application configuration and secrets?
 
-Examples:
+When a secret value is changed or rotated, how would you ensure that the application securely starts using the new value?
 
-* MongoDB URI
-* GitHub API token
+**Answer:**
 
-Kubernetes Secret resources are used in the Kubernetes deployment. Non-sensitive configuration is provided through environment variables.
+Secrets are not hardcoded into source code or Docker images.
 
-For example, the backend uses:
+For local Kubernetes deployment, `setup-k8s.ps1` creates Kubernetes Secret resources from `.env` values. For AWS EKS deployment, values are transferred from GitHub Actions Secrets to Kubernetes Secrets.
 
-```text
-ATLAS_URI
-ALLOWED_ORIGIN
-```
+Important values include `ATLAS_URI`, `GITHUB_TOKEN`, and `MONGODB_URI`.
 
-and the ETL uses:
-
-```text
-GITHUB_TOKEN
-MONGODB_URI
-```
-
-among other values.
-
-When a secret is changed, an old value injected into a running Pod as an environment variable does not automatically change inside the running process. Therefore, the safe approach is to update the Secret and restart/recreate the relevant Deployment/CronJob workload so that a new Pod receives the new value.
-
-For production, centralized secret management and controlled rollout can be used for secret rotation.
+When a Secret changes, existing environment variables inside running Pods do not change automatically, so the workload must be rolled out with new Pods. In production, a centralized secret manager can be used for controlled secret rotation.
 
 ---
 
 ## 10. MongoDB Availability Failure
 
-In the current backend implementation, the MongoDB connection is established during startup. If the connection fails, the application fails fast and terminates the process.
+If MongoDB becomes unavailable, how will the backend application, readiness/liveness checks, and user requests behave?
 
-This prevents an unhealthy backend from appearing to be operational without database access.
+What measures did you take, or would you take, to reduce user impact and allow the service to recover in a controlled manner?
 
-In the current system, the `/healthcheck/` endpoint verifies that the process can respond over HTTP. However, there is currently no separate readiness/liveness probe definition that directly verifies MongoDB dependency availability.
+**Answer:**
 
-In a production environment, I would separate them as follows:
+The backend establishes the MongoDB connection during startup and fails fast if the connection cannot be established.
 
-* **Liveness probe:** checks whether the process is running.
-* **Readiness probe:** checks whether the backend can access required dependencies, including MongoDB.
+The current `/healthcheck/` endpoint verifies that the HTTP process is responding; there is no separate Kubernetes readiness/liveness probe that directly checks the MongoDB dependency.
 
-If readiness is designed to fail when MongoDB is unavailable, Kubernetes can help prevent new user traffic from being routed to an unhealthy Pod. Database operations should also return controlled HTTP errors and generate application logs.
+In production, I would separate the readiness probe so that it checks required dependencies including MongoDB. This allows a Pod without database access to be removed from serving new user traffic.
 
-In this case, the current healthcheck endpoint is used to verify backend availability during CI/CD.
+The backend healthcheck is also verified after CI/CD deployment.
 
 ---
 
 ## 11. Faulty Deployment and Rollback
 
-For faulty deployment investigation, I would first inspect:
+How would you detect a faulty deployment?
 
-```text
+Which method would you use to roll it back, and how would you verify that the previous working version has been restored safely?
+
+**Answer:**
+
+First, I would inspect the Pod and event status using:
+
+```powershell
 kubectl get pods -n devops-case
 kubectl describe pod <pod> -n devops-case
 kubectl logs <pod> -n devops-case
 kubectl get events -n devops-case
 ```
 
-to examine Pod status, container logs, and Kubernetes events.
+Then I would inspect the Deployment history:
 
-Deployment rollout status is checked with:
-
-```text
-kubectl rollout status deployment/backend -n devops-case
-kubectl rollout status deployment/frontend -n devops-case
+```powershell
+kubectl rollout history deployment/backend -n devops-case
+kubectl rollout history deployment/frontend -n devops-case
 ```
 
-For a faulty version, the previous ReplicaSet can be restored using:
+and roll back to the previous version:
 
-```text
+```powershell
 kubectl rollout undo deployment/backend -n devops-case
+kubectl rollout undo deployment/frontend -n devops-case
 ```
 
-or the same method for the frontend.
+After the rollback, rollout status, backend healthcheck, and frontend access are verified again.
 
-After rollback:
-
-```text
-kubectl rollout status deployment/backend -n devops-case
-```
-
-is used to verify the rollout, followed by backend healthcheck and frontend endpoint tests.
-
-In the CI/CD pipeline, if the deployment job's healthcheck stage fails, the pipeline also fails.
+A failed healthcheck after CI/CD deployment causes the job to fail.
 
 ---
 
 ## 12. Scalability and Bottlenecks
 
-If traffic increases tenfold, I would expect the first bottleneck to occur in backend resource usage, followed by MongoDB connections and database capacity.
+If traffic increases tenfold, where do you expect the first bottleneck to occur?
 
-I would first evaluate the following metrics:
+Which components would you scale, and based on which metrics and thresholds? Explain how you would evaluate database connections, resource usage, and dependent services.
 
-* CPU usage
-* Memory usage
-* HTTP request rate
-* Response latency
-* HTTP error rate
-* MongoDB connection usage
-* MongoDB query latency
+**Answer:**
 
-Because the backend is stateless, it can be horizontally scaled by increasing the number of replicas.
+With a tenfold traffic increase, I would first investigate backend CPU/memory usage and MongoDB connection/query load.
 
-In production, HPA could be introduced if CPU and memory utilization remain above defined thresholds. However, scaling should not rely only on CPU; application metrics such as request rate and latency should also be considered.
+Important metrics include:
 
-The frontend is also stateless and can be scaled by increasing its replica count in a similar way.
+- CPU / memory
+- request rate
+- response latency
+- error rate
+- MongoDB connection usage
+- query latency
 
-On the MongoDB side, increasing the number of application replicas alone is not sufficient. The database connection load generated by the additional replicas, query performance, and database capacity must also be evaluated.
+Since the frontend and backend are stateless, their replica counts can be increased. When necessary, node autoscaling can also be applied based on workload demand. For example, AWS EKS can use HPA (Horizontal Pod Autoscaler) for Pod-level scaling.
 
-Therefore, scaling decisions should be based on application and database metrics together.
+MongoDB connections and database load must also be considered because increasing replicas increases the potential database connection and query load.
 
 ---
 
 ## 13. Logging, Monitoring, and Alerting
 
-Operationally meaningful logs are present on the backend and ETL sides.
+Which logs, metrics, and alerts did you create?
 
-Backend examples:
+During an incident, which dashboards, logs, metrics, or alert records would you examine first to diagnose the problem?
 
-```text
-Connecting to MongoDB Atlas...
-Server listening on port 5050
-Database connection failed...
-```
+**Answer:**
 
-ETL examples:
+Operational logs are maintained for the backend and ETL.
 
-```text
-Fetching repository
-Github repository received
-Connecting to MongoDB
-MongoDB connection successful
-UPDATE: repository updated
-MongoDB document count
-ETL completed successfully
-```
+ETL logs show repository information, MongoDB connection status, update operations, document count, and successful completion.
 
-Kubernetes CronJob logs are used to track the ETL execution stages and whether the execution completed successfully or failed.
+Two critical alert scenarios were implemented:
 
-In addition, `scripts/check-alerts.ps1` contains two critical alert checks:
+- **ALERT-001:** ETL failure or no successful ETL execution within the expected time window
+- **ALERT-002:** Frontend or backend health endpoint unavailable
 
-* **ALERT-001:** ETL failure or no successful ETL execution within the expected time window
-* **ALERT-002:** Frontend or backend health endpoint unavailability
+These checks are implemented and tested through `scripts/check-alerts.ps1`.
 
-Both alerts were intentionally triggered and verified using the script's test mode.
-
-During an incident, I would first inspect:
-
-```text
-1. Alert result
-2. Kubernetes Pod / Job status
-3. ETL or backend logs
-4. Deployment rollout status
-5. Backend healthcheck
-6. Frontend endpoint
-```
-
-In a more advanced production environment, Prometheus/Grafana, centralized log collection, and real notification channels could be added.
+During an incident, I would first inspect the alert result, Kubernetes Pod/Job status, relevant logs, rollout status, and healthcheck results.
 
 ---
 
 ## 14. Security Risks
 
-### 1. Secret / credential exposure
+What are the three most important security risks in your solution?
 
-Exposing sensitive information such as the MongoDB URI or GitHub API token in source code or images would be a serious risk.
+Explain the controls you implemented, or would implement in production, to reduce these risks.
 
-Controls:
+**Answer:**
 
-* Secret information is provided through environment variables / Kubernetes Secrets.
-* `.env` and similar secret files are included in `.gitignore`.
-* Secret values are not written into Docker images.
+Three important risks and the corresponding controls are:
 
-A centralized secret management solution can be used in production.
+1. **Secret exposure:** Secrets are managed through GitHub Actions Secrets / Kubernetes Secrets and are not embedded in source code or images.
+2. **Running containers as root:** `runAsNonRoot`, `allowPrivilegeEscalation: false`, and `capabilities.drop: ALL` are applied.
+3. **Unnecessary external exposure:** Frontend and backend are kept as `ClusterIP` Services and external access is provided through Envoy Gateway.
 
-### 2. Running containers as root
-
-A compromised root container could increase the potential impact of an attack inside the container.
-
-Therefore, the workloads use:
-
-```yaml
-runAsNonRoot: true
-allowPrivilegeEscalation: false
-capabilities:
-  drop:
-    - ALL
-```
-
-The container users were verified as:
-
-```text
-Backend  → node / UID 1000
-Frontend → nginx / UID 101
-ETL      → appuser / UID 10001
-```
-
-### 3. Unnecessary external network exposure
-
-Exposing the backend directly through a NodePort or LoadBalancer could increase the attack surface.
-
-Therefore, the frontend and backend Services use `ClusterIP`, and external access is restricted through Envoy Gateway.
+GitHub Actions also uses OIDC for AWS access, IAM least privilege, and namespace-scoped Kubernetes RBAC.
 
 ---
 
-## 15. Python ETL Update Approach
+## 15. Python ETL Record Update Behavior
 
-The ETL uses the GitHub repository ID as the unique record key.
+When the Python ETL receives the same repository information again, how does it find and update the existing record?
 
-Field used:
+Which field did you use as the unique record key, and which screenshot or output demonstrates that no duplicate was created?
+
+**Answer:**
+
+The unique record key is:
 
 ```text
 github_id
 ```
 
-For example, the repository ID is:
+For example, the repository ID for this project is:
 
 ```text
-1361100555
+github_id = 1361100555
 ```
 
-When the same repository is processed again, the existing record is updated using `github_id` instead of creating a new MongoDB document.
+When the same repository is processed again, `update_one(..., upsert=True)` updates the existing document instead of creating a duplicate.
 
-The actual execution produced:
+Evidence:
 
-```text
-UPDATE: repository updated (github_id=1361100555)
-MongoDB document count: 1
-ETL completed successfully.
-```
+- `docs/screenshots/20-etl-first-load.png`
+- `docs/screenshots/21-etl-update-without-duplicate.png`
+- `docs/screenshots/22-eks-etl-success.png`
 
-This evidence is provided in `docs/screenshots/13-etl-update-without-duplicate.png`.
+The ETL logs show the update operation and `MongoDB document count: 1`. They also show which fields were updated using `Updated fields: ...`.
 
 ---
 
 ## 16. Backup and Restore Approach
 
-MongoDB Database Tools `mongodump` was used for backup.
+Which backup method and storage location did you choose for MongoDB?
 
-Backup:
+What are your backup frequency, retention period, RPO, and RTO targets, and what was the actual restore duration you measured?
 
-```text
-MongoDB Atlas
-      ↓
-mongodump
-      ↓
-backups/sample-training-backup
-```
+How would you verify that a backup is not corrupted or incomplete, and how would you change this approach in a real production environment?
 
-was the selected backup flow.
+Provide your runbook in `docs/backup-restore.md` and reference the evidence from `SUBMISSION_EVIDENCE.md`.
 
-The entire `sample_training` database was backed up during the backup scenario.
+**Answer:**
 
-In the actual test:
+MongoDB Atlas data was backed up at the `sample_training` database level using `mongodump` and stored under `backups/sample-training-backup/`.
+
+Test scope:
 
 ```text
-sample_training.records               → 1 document
-sample_training.github_repositories   → 1 document
-Total                                 → 2 documents
+records                 → 1 document
+github_repositories     → 1 document
+Total                   → 2 documents
 ```
 
-were backed up.
+The current case solution uses **manual backups**; no automated backup schedule or retention policy is implemented. A production target of **RPO ≤ 24 hours** can be defined. The measured restore command time was approximately **1.3 seconds**; this only represents the command execution time and is **not considered a production RTO**.
 
-The database was then deleted, the loss of the data was verified both through the web interface and MongoDB Atlas, and the database was restored using `mongorestore`.
+Restore validation included:
+
+- deleting the database and verifying data loss,
+- checking the `mongorestore` result and error count,
+- verifying collection and document counts,
+- confirming that the data could be read again through the application.
 
 Restore result:
 
 ```text
-2 document(s) restored successfully.
-0 document(s) failed to restore.
+2 documents restored successfully.
+0 documents failed to restore.
 ```
 
-was verified.
+In production, I would use automated and encrypted backups, defined retention, off-site/object storage, regular restore tests, and actual RPO/RTO monitoring.
 
-The measured restore command duration was approximately:
+Runbook: `docs/backup-restore.md`
 
-```text
-1.3 seconds
-```
+Evidence: the backup/restore section of `SUBMISSION_EVIDENCE.md`:
 
-This duration represents only the execution time of the restore command and is not considered an end-to-end production RTO.
-
-### RPO / Retention
-
-In the current case solution, backups are taken manually and there is no automated retention or off-site backup storage.
-
-A production target of a maximum **24-hour data loss** could be used as an RPO target. However, the current manual approach does not guarantee this RPO.
-
-Retention is also not currently enforced automatically.
-
-### Backup verification
-
-I would not consider a backup valid merely because the backup files were created.
-
-For verification:
-
-1. `mongodump` output and document count are checked.
-2. The restore operation is tested against a clean target.
-3. The `mongorestore` result and error count are checked.
-4. Collection and document counts are verified.
-5. The restored data is verified to be readable through the application.
-
-These steps were performed against real MongoDB Atlas data as part of this case.
-
-### Production approach
-
-In production, I would use:
-
-* Managed MongoDB backup/snapshots,
-* Encrypted off-site/object storage,
-* Automated retention policy,
-* Access control,
-* Periodic restore tests,
-* Backup monitoring and alerting
-
-The detailed backup/restore runbook is available in `docs/backup-restore.md`. Work evidence is provided in `TESLIM_KANITLARI.md` through screenshots 17–25.
+- **Record creation 1:** `docs/screenshots/29-backup-record-created-01.png`
+- **Record creation 2:** `docs/screenshots/30-backup-record-created-02.png`
+- **Taking the backup (screenshot or terminal output):** `docs/screenshots/31-backup-taken.png`
+- **Dropping the collection or database (screenshot or terminal output):** `docs/screenshots/32-collection-dropped.png`
+- **Showing that the data is gone (interface screenshot):** `docs/screenshots/33-data-missing-after-drop-ui.png`
+- **Showing that the data is gone (database output):** `docs/screenshots/34-data-missing-after-drop-database.png`
+- **Restoring from the backup (screenshot or terminal output):** `docs/screenshots/35-restore-executed.png`
+- **Verifying that the data is back (interface screenshot):** `docs/screenshots/36-data-restored-verified-ui.png`
+- **Verifying that the data is back (database output (1)):** `docs/screenshots/37-data-restored-verified-database-01.png`
+- **Verifying that the data is back (database output (2)):** `docs/screenshots/38-data-restored-verified-database-02.png`
 
 ---
 
 ## Additional Notes
 
-Two advanced criteria were specifically implemented as part of the case.
+Use this section for any additional decisions, limitations, or future improvement steps that you would like to highlight.
 
-First, two critical alert scenarios were defined and tested through `scripts/check-alerts.ps1`. This provides verifiable alert scenarios rather than only generating logs.
+**Answer:**
 
-Second, container and Kubernetes security were hardened. The backend, frontend, and ETL containers run as non-root users; privilege escalation is disabled and all Linux capabilities are dropped.
+In the final stage of the work, the application was moved from local Kubernetes validation to a real AWS EKS environment and automated cloud deployment was established through GitHub Actions.
 
-The CI/CD deployment uses an ephemeral MongoDB inside a temporary Kind cluster to avoid depending on access to the production database. This prevents external network dependencies such as the GitHub Actions runner IP not being present in the MongoDB Atlas allowlist from blocking deployment validation.
+The CI/CD flow uses GitHub OIDC with an AWS IAM Role, pushes images to Amazon ECR using commit SHA tags, and deploys the same versions to EKS.
 
-This CI MongoDB is used only for testing/deployment validation and does not replace the MongoDB Atlas data layer used in the normal application deployment.
+The current solution has been completed to satisfy the case requirements. Further production improvements could include fully managed IaC, advanced monitoring and autoscaling, centralized secret management, and more advanced disaster recovery.

@@ -148,12 +148,10 @@ ile doğrulanmaktadır. Geçersiz değerlerde uygun HTTP response döndürülmek
 
 **Dosya Yolu:** `mern-project\client\cypress\integration\endToEnd.spec.js`
 
-**Sorun:** Cypress testi doğrudan `http://localhost:3000` adresini ziyaret etmektedir. Ancak `Employee1` kaydının bulunduğu liste `/records` route'u altında yer aldığı için test başlangıçta doğru sayfayı açamamaktadır.
+**Sorun:** Cypress testi yanlış route'a gidiyordu. Test `/records` route'una yönlendirildi. Test URL'si hâlen local test ortamına bağlı olduğundan farklı ortamlarda çalıştırılması gerektiğinde environment/configuration üzerinden yönetilebilir.
 
 **Çözüm:** Testin başlangıç URL'si `/records` route'una yönlendirilmiştir:
 
 ```js
 cy.visit("http://localhost:3000/records");
 ```
-
-Böylece test, `Employee1` kaydının görüntülendiği doğru sayfayı açarak ilgili assertion'ı gerçekleştirebilmektedir.
