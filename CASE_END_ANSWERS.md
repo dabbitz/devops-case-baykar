@@ -10,7 +10,7 @@ Answers should be concise, specific, and detailed enough to explain your technic
 
 - **Full name:** Tunahan Değirmencioğlu
 - **Repository URL:** `https://github.com/dabbitz/devops-case-baykar.git`
-- **Completion date:** 13.09.2026
+- **Completion date:** 11.09.2026
 - **Target environment used:** AWS EKS (`devops-case-eks`, `eu-central-1`)
 
 ---
@@ -197,16 +197,16 @@ Describe how you evaluated the following:
 
 **Answer:**
 
-- **Frontend → `Deployment`:** Stateless web workload; it requires no persistent storage, special Pod identity, or ordered execution. Supports replicas and rolling updates.
-- **Backend → `Deployment`:** Stateless REST API; persistent data is stored in MongoDB. No special Pod identity is required and it can scale horizontally.
-- **MongoDB:** MongoDB Atlas is used in the normal deployment, so a Kubernetes `StatefulSet` is not used. The CI MongoDB is only an ephemeral test workload.
-- **ETL → `CronJob`:** Runs hourly as a periodic workload. Each execution creates a separate `Job`; `Forbid` prevents overlapping executions and retries are supported on failure.
+- **Frontend → `Deployment`:** It is a stateless web workload and does not require persistent storage, a unique Pod identity, or ordered execution. It supports replicas and rolling updates. Liveness/readiness probes and CPU/memory resource requests/limits are defined.
+- **Backend → `Deployment`:** It is a stateless REST API; persistent data is stored in MongoDB. No unique Pod identity is required, and it can be horizontally scaled. Liveness/readiness probes using `/healthcheck/` and CPU/memory resource requests/limits are defined. `maxSurge: 0` and `maxUnavailable: 1` are used for controlled rolling updates in the single-node EKS environment.
+- **MongoDB:** MongoDB Atlas is used in the normal deployment, so a Kubernetes `StatefulSet` is not required. The MongoDB instance used in CI is only an ephemeral test workload.
+- **ETL → `CronJob`:** It is a periodic workload that runs hourly. Each execution creates a separate `Job`; overlapping executions are prevented with `Forbid`, failed executions are retried, and CPU/memory resource requests/limits are defined.
 
 ```text
 0 * * * *
 ```
 
-These choices consider stateless/stateful operation, persistence, Pod identity and ordering requirements, execution frequency, restart behavior, and scalability.
+These workload decisions were considered with stateless/stateful operation, persistence requirements, Pod identity and ordering needs, execution frequency, restart behavior, resource usage, and scalability.
 
 ---
 
@@ -238,7 +238,7 @@ What measures did you take, or would you take, to reduce user impact and allow t
 
 The backend establishes the MongoDB connection during startup and fails fast if the connection cannot be established.
 
-The current `/healthcheck/` endpoint verifies that the HTTP process is responding; there is no separate Kubernetes readiness/liveness probe that directly checks the MongoDB dependency.
+The existing `/healthcheck/` endpoint verifies that the HTTP process is responsive and is used as both the readiness and liveness probe in the backend Deployment; it does not directly check the MongoDB dependency.
 
 In production, I would separate the readiness probe so that it checks required dependencies including MongoDB. This allows a Pod without database access to be removed from serving new user traffic.
 
@@ -302,7 +302,7 @@ Important metrics include:
 - MongoDB connection usage
 - query latency
 
-Since the frontend and backend are stateless, their replica counts can be increased. When necessary, node autoscaling can also be applied based on workload demand. For example, AWS EKS can use HPA (Horizontal Pod Autoscaler) for Pod-level scaling.
+Since the frontend and backend are stateless, their replica counts can be increased. If needed, an HPA (Horizontal Pod Autoscaler) can be used for Pod-level scaling. When node capacity becomes insufficient, node autoscaling mechanisms such as Cluster Autoscaler or Karpenter can be used.
 
 MongoDB connections and database load must also be considered because increasing replicas increases the potential database connection and query load.
 
@@ -447,5 +447,9 @@ Use this section for any additional decisions, limitations, or future improvemen
 In the final stage of the work, the application was moved from local Kubernetes validation to a real AWS EKS environment and automated cloud deployment was established through GitHub Actions.
 
 The CI/CD flow uses GitHub OIDC with an AWS IAM Role, pushes images to Amazon ECR using commit SHA tags, and deploys the same versions to EKS.
+
+Liveness/readiness probes, CPU/memory resource requests/limits, and a controlled rolling update configuration suitable for the single-node EKS environment have also been implemented and verified on the actual EKS environment.
+
+The core requirements specified in the case have been implemented and verified. In addition, extra work has been completed in the areas of packaging/environment management and advanced observability.
 
 The current solution has been completed to satisfy the case requirements. Further production improvements could include fully managed IaC, advanced monitoring and autoscaling, centralized secret management, and more advanced disaster recovery.

@@ -10,7 +10,7 @@ Cevaplarınızın kısa, somut ve teknik kararlarınızı açıklayacak düzeyde
 
 - **Ad Soyad:** Tunahan Değirmencioğlu
 - **Repository adresi:** `https://github.com/dabbitz/devops-case-baykar.git`
-- **Çalışmanın tamamlandığı tarih:** 13.09.2026
+- **Çalışmanın tamamlandığı tarih:** 11.09.2026
 - **Kullanılan hedef ortam:** AWS EKS (`devops-case-eks`, `eu-central-1`)
 
 ---
@@ -200,16 +200,16 @@ Karar verirken aşağıdaki konuları nasıl değerlendirdiğinizi belirtin:
 
 **Cevap:**
 
-- **Frontend → `Deployment`:** Stateless web workload'dur; kalıcı storage, özel Pod kimliği veya sıralı çalışma gerektirmez. Replica ve rolling update desteklenir.
-- **Backend → `Deployment`:** Stateless REST API'dir; kalıcı veri MongoDB'de tutulur. Özel Pod kimliği gerekmez ve yatay ölçeklenebilir.
+- **Frontend → `Deployment`:** Stateless web workload'dur; kalıcı storage, özel Pod kimliği veya sıralı çalışma gerektirmez. Replica ve rolling update desteklenir. Liveness/readiness probe'ları ve CPU/memory resource requests/limits tanımlıdır.
+- **Backend → `Deployment`:** Stateless REST API'dir; kalıcı veri MongoDB'de tutulur. Özel Pod kimliği gerekmez ve yatay ölçeklenebilir. `/healthcheck/` üzerinden liveness/readiness probe'ları ve CPU/memory resource requests/limits tanımlıdır. Tek node'lu EKS ortamında kontrollü rolling update için `maxSurge: 0` ve `maxUnavailable: 1` kullanılmıştır.
 - **MongoDB:** Normal deployment'ta MongoDB Atlas kullanıldığı için Kubernetes `StatefulSet` kullanılmamıştır. CI'daki MongoDB yalnızca ephemeral test workload'udur.
-- **ETL → `CronJob`:** Saatlik çalışan periyodik bir workload'dur. Her çalışma ayrı bir `Job` oluşturur; `Forbid` ile çakışan çalışmalar engellenir ve başarısız çalışmalarda retry uygulanır.
+- **ETL → `CronJob`:** Saatlik çalışan periyodik bir workload'dur. Her çalışma ayrı bir `Job` oluşturur; `Forbid` ile çakışan çalışmalar engellenir, başarısız çalışmalarda retry uygulanır ve CPU/memory resource requests/limits tanımlıdır.
 
 ```text
 0 * * * *
 ```
 
-Bu seçimlerde stateless/stateful çalışma, persistence, Pod kimliği ve sıralama ihtiyacı, çalışma sıklığı, yeniden başlatma davranışı ve ölçeklenebilirlik dikkate alınmıştır.
+Bu seçimlerde stateless/stateful çalışma, persistence, Pod kimliği ve sıralama ihtiyacı, çalışma sıklığı, yeniden başlatma davranışı, kaynak kullanımı ve ölçeklenebilirlik dikkate alınmıştır.
 
 ---
 
@@ -241,7 +241,7 @@ Kullanıcı etkisini azaltmak ve servisin kontrollü şekilde toparlanmasını s
 
 Backend, MongoDB bağlantısını startup sırasında kurar ve bağlantı başarısız olduğunda fail-fast davranarak process'i sonlandırır.
 
-Mevcut `/healthcheck/` endpoint'i HTTP process erişilebilirliğini doğrular; MongoDB dependency'sini doğrudan kontrol eden ayrı Kubernetes readiness/liveness probe mevcut değildir.
+Mevcut `/healthcheck/` endpoint'i HTTP process erişilebilirliğini doğrular ve backend Deployment'ında hem readiness hem de liveness probe olarak kullanılmaktadır; MongoDB dependency'sini doğrudan kontrol etmez.
 
 Production'da readiness probe'u MongoDB dahil gerekli dependency'leri kontrol edecek şekilde ayırırdım. Böylece database erişimi olmayan bir Pod yeni kullanıcı trafiğini almaktan çıkarılabilir.
 
@@ -307,7 +307,7 @@ Trafiğin 10 kat artması durumunda ilk olarak backend CPU/memory kullanımı ve
 - MongoDB connection usage
 - query latency
 
-Backend ve frontend stateless olduğu için replica sayıları arttırılabilir. Gerektiğinde node autoscaling (node sayısının iş yükü talebine göre otomatik olarak arttırılması veya azaltılması) uygulanabilir. Örneğin, AWS EKS'de bu HPA (Horizontal Pod Autoscaler) ile yapılabilir.
+Backend ve frontend stateless olduğu için replica sayıları arttırılabilir. Gerek görülürse Pod seviyesinde HPA (Horizontal Pod Autoscaler) kullanılabilir. Node kapasitesi yetersiz kaldığında ise Cluster Autoscaler veya Karpenter gibi node autoscaling mekanizmaları kullanılabilir.
 
 MongoDB'nin replica sayısı, connection ve database yükünü arttıracağından ayrıca değerlendirilmelidir.
 
@@ -453,5 +453,9 @@ Case kapsamında özellikle belirtmek istediğiniz ek kararlar, sınırlamalar v
 Çalışmanın son aşamasında yerel Kubernetes doğrulamasına ek olarak uygulama gerçek AWS EKS ortamına taşınmış ve GitHub Actions üzerinden otomatik cloud deployment sağlanmıştır.
 
 CI/CD akışında GitHub OIDC ile AWS IAM Role kullanılmış, image'lar commit SHA ile Amazon ECR'a gönderilmiş ve aynı sürümler EKS'e deploy edilmiştir.
+
+Kubernetes workload'ları için liveness/readiness probes, CPU/memory resource requests/limits ve tek node'lu EKS ortamına uygun kontrollü rolling update yapılandırması da uygulanmış ve gerçek EKS ortamında doğrulanmıştır.
+
+Ana case kriterlerinde belirtilen temel gereksinimler uygulanmış ve doğrulanmıştır. Ayrıca üst kriterlerden paketleme ve ortam yönetimi ile ileri gözlemlenebilirlik alanlarında ek uygulamalar gerçekleştirilmiştir.
 
 Mevcut çözüm case kapsamındaki gereksinimleri karşılayacak şekilde tamamlanmıştır. Daha ileri production ihtiyaçları olarak altyapının tamamen IaC ile yönetilmesi, gelişmiş monitoring ve autoscaling, merkezi secret management ve gelişmiş disaster recovery sonraki geliştirme alanları olarak değerlendirilebilir.

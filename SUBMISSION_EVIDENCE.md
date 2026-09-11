@@ -47,7 +47,12 @@ Screenshots must not expose real credentials, tokens, passwords, private keys, o
 - **ECR images (backend):** `docs/screenshots/15-ecr-images-backend.png`
 - **ECR images (frontend):** `docs/screenshots/16-ecr-images-frontend.png`
 - **ECR images (ETL):** `docs/screenshots/17-ecr-images-etl.png`
+- **Health check and resource definitions (backend):** `docs/screenshots/46-eks-healthchecks-resources-backend.png`
+- **Health check and resource definitions (frontend):** `docs/screenshots/47-eks-healthchecks-resources-frontend.png`
+- **Health check and resource definitions (etl):** `docs/screenshots/48-eks-cpu-memory-limits-etl.png`
 - **Explanation:** The application has been deployed to the `devops-case-eks` cluster on AWS EKS. The backend and frontend Deployments, Service resources, and the Python ETL CronJob are running on EKS. Container images are pulled from Amazon ECR.
+
+Kubernetes liveness/readiness probes are defined for the backend and frontend Deployments. The backend uses the `/healthcheck/` endpoint, while the frontend uses the `/` endpoint. CPU and memory resource requests/limits are defined for the backend, frontend, and ETL workloads. The backend Deployment uses `maxSurge: 0` and `maxUnavailable: 1` for a controlled rolling update suitable for the single-node EKS environment.
 
 ### 3.3 Cloud external access
 

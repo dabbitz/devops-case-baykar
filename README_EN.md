@@ -508,14 +508,16 @@ k8s/eks/
 The EKS deployment consists of:
 
 ```text
-Frontend → Deployment + ClusterIP Service
-Backend  → Deployment + ClusterIP Service
+Frontend → Deployment + ClusterIP Service + liveness/readiness probes
+Backend  → Deployment + ClusterIP Service + liveness/readiness probes
 ETL      → CronJob
 Gateway  → Envoy Gateway
 Routing  → HTTPRoute
 ```
 
 Container images are pulled from Amazon ECR.
+
+CPU and memory resource requests/limits are defined for the backend, frontend, and ETL workloads.
 
 To inspect workloads running on EKS:
 
@@ -543,20 +545,24 @@ This endpoint is accessible through the AWS Load Balancer.
 Frontend:
 
 ```text
-Deployment + ClusterIP Service
+Deployment + ClusterIP Service + liveness/readiness probes + CPU/memory requests/limits
 ```
 
 Backend:
 
 ```text
-Deployment + ClusterIP Service
+Deployment + ClusterIP Service + liveness/readiness probes + CPU/memory requests/limits + controlled rolling update
 ```
 
 Python ETL:
 
 ```text
-CronJob
+CronJob + CPU/memory requests/limits
 ```
+
+Kubernetes liveness/readiness probes are defined for the backend and frontend. The backend is monitored through the `/healthcheck/` endpoint, while the frontend is monitored through the `/` endpoint.
+
+CPU and memory resource requests/limits are defined for all application workloads. The backend Deployment is configured with `maxSurge: 0` and `maxUnavailable: 1` to support controlled rolling updates in the single-node EKS environment.
 
 ETL schedule:
 
@@ -589,6 +595,8 @@ capabilities:
   drop:
     - ALL
 ```
+
+Resource requests/limits and application health probes are also defined for the Kubernetes workloads, allowing Kubernetes to manage resource usage and monitor workload health.
 
 Secret values are not embedded in the repository source code or Docker images.
 
@@ -845,6 +853,12 @@ docker compose down
 Unused locally built Docker images can also be removed through Docker.
 
 Removing application workloads from EKS does not automatically delete the EKS cluster or the underlying AWS infrastructure. Cluster and infrastructure cleanup must be managed separately.
+
+## Environment Limitations
+
+The AWS EKS case environment runs on a single `t3.small` worker node. Due to Free Tier resource constraints, system components and application workloads share the same node.
+
+Because of these resource constraints, the Metrics Server is configured with a single replica. This configuration is intended for the case/test environment; a production environment would typically use higher capacity, multiple worker nodes, and an appropriate high-availability configuration.
 
 ## Documentation and Evidence
 

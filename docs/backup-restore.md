@@ -14,7 +14,7 @@ Bu runbook, MongoDB Atlas üzerinde kullanılan `sample_training` database'inin 
 | Yedek formatı / Backup format                       | MongoDB BSON dump formatı ve collection metadata dosyaları kullanılmıştır. Backup içerisinde `records.bson`, `github_repositories.bson` ve ilgili metadata dosyaları bulunmaktadır.                                                                                                                                                                  |
 | Sıklık / Frequency                                                     | Bu case kapsamında manuel olarak alınmıştır. Production ortamı için zamanlanmış günlük veya daha sık backup önerilmektedir.                                                                                                                                                                                                                          |
 | Retention süresi / Retention period                                    | Case çalışma ortamında belirlenmiş otomatik retention mekanizması bulunmamaktadır. Production ortamında en az 7 günlük veya iş gereksinimine göre daha uzun bir retention politikası uygulanmalıdır.                                                                                                                                                 |
-| Şifreleme ve erişim kontrolü / Encryption and access control           | MongoDB bağlantı bilgileri backup komutuna repository içerisinden sabit olarak yazılmamış, yerel `.env` değişkeninden okunmuştur. Backup dosyaları repository'ye eklenmemekte ve `backups/` `.gitignore` tarafından hariç tutulmaktadır. Production ortamında backup dosyaları erişim kontrollü ve şifreli bir harici storage üzerinde tutulmalıdır. |
+| Erişim ve güvenlik / Access and security           | MongoDB bağlantı bilgileri backup komutuna repository içerisinden sabit olarak yazılmamış, yerel `.env` değişkeninden okunmuştur. Backup dosyaları repository'ye eklenmemekte ve `backups/` `.gitignore` tarafından hariç tutulmaktadır. Production ortamında backup dosyaları erişim kontrollü ve şifreli bir harici storage üzerinde tutulmalıdır. |
 
 ## 2. Hedefler / Targets
 
@@ -87,7 +87,7 @@ finished restoring `sample_training.records` (1 document, 0 failures)
 2 document(s) restored successfully. 0 document(s) failed to restore.
 ```
 
-`github_repositories` collection'ına ait unique `github_id` index'i de backup metadata üzerinden yeniden oluşturulmuştur.
+`github_repositories` collection'ının backup metadata'sındaki index tanımları da restore sürecinde yeniden uygulanmıştır.
 
 ## 5. Doğrulama / Verification
 

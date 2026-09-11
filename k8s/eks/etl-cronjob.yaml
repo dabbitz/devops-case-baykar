@@ -34,6 +34,14 @@ spec:
                     - ALL
               imagePullPolicy: IfNotPresent
 
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "256Mi"
+
               env:
                 - name: GITHUB_OWNER
                   value: "dabbitz"

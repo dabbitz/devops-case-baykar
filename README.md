@@ -523,14 +523,16 @@ altında bulunmaktadır.
 EKS deployment'ında:
 
 ```text
-Frontend → Deployment + ClusterIP Service
-Backend  → Deployment + ClusterIP Service
+Frontend → Deployment + ClusterIP Service + liveness/readiness probes
+Backend  → Deployment + ClusterIP Service + liveness/readiness probes
 ETL      → CronJob
 Gateway  → Envoy Gateway
 Routing  → HTTPRoute
 ```
 
 şeklinde çalışmaktadır.
+
+Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits tanımlıdır.
 
 Container image'ları Amazon ECR'dan alınmaktadır.
 
@@ -560,20 +562,24 @@ AWS Load Balancer üzerinden erişilebilir durumdadır.
 Frontend:
 
 ```text
-Deployment + ClusterIP Service
+Deployment + ClusterIP Service + liveness/readiness probes + CPU/memory requests/limits
 ```
 
 Backend:
 
 ```text
-Deployment + ClusterIP Service
+Deployment + ClusterIP Service + liveness/readiness probes + CPU/memory requests/limits + controlled rolling update
 ```
 
 Python ETL:
 
 ```text
-CronJob
+CronJob + CPU/memory requests/limits
 ```
+
+Backend ve frontend için Kubernetes liveness/readiness probe'ları tanımlanmıştır. Backend `/healthcheck/`, frontend `/` endpoint'i üzerinden kontrol edilmektedir.
+
+Tüm uygulama workload'larında CPU ve memory resource requests/limits tanımlanmıştır. Backend Deployment'ı tek node'lu EKS ortamına uygun olarak `maxSurge: 0` ve `maxUnavailable: 1` ile yapılandırılmıştır.
 
 ETL schedule:
 
@@ -608,6 +614,8 @@ capabilities:
 ```
 
 kontrolleri uygulanmıştır.
+
+Kubernetes workload'larında ayrıca resource requests/limits ve uygulama health probes tanımlanarak workload'ların kaynak kullanımı ve çalışma durumu Kubernetes tarafından yönetilmektedir.
 
 Secret değerleri repository source code'u veya Docker image içerisine gömülmemektedir.
 
@@ -869,6 +877,12 @@ Yerel olarak oluşturulan kullanılmayan Docker image'ları ayrıca Docker üzer
 
 EKS üzerindeki application workload'larını kaldırmak, EKS cluster'ını veya AWS altyapısını otomatik olarak silmez. Cluster ve altyapı temizliği ayrı olarak yönetilmelidir.
 
+## Ortam Sınırlamaları
+
+AWS EKS case ortamı tek adet `t3.small` worker node ile çalıştırılmaktadır. Free Tier kaynak sınırları nedeniyle sistem bileşenleri ve uygulama workload'ları aynı node üzerinde çalışmaktadır.
+
+Bu kaynak kısıtı nedeniyle Metrics Server tek replica olarak yapılandırılmıştır. Bu yapı case/test ortamına yöneliktir; production ortamında daha yüksek kapasite, birden fazla worker node ve uygun yüksek erişilebilirlik yapılandırması tercih edilmelidir.
+
 ## Dokümantasyon ve Kanıtlar
 
 Mimari:
@@ -902,4 +916,5 @@ Ekran görüntüleri:
 Ana case dokümanı:
 
 `DevOps_Teknik_Case_TR.docx`
+
 

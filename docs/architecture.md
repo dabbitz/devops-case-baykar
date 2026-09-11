@@ -88,6 +88,8 @@ React + NGINX
 
 `frontend-service` `ClusterIP` tipindedir; dış erişim doğrudan Pod'a değil Gateway üzerinden sağlanmaktadır.
 
+Frontend Deployment'ında `/` endpoint'i üzerinden liveness ve readiness probe'ları tanımlanmıştır. Ayrıca, CPU ve memory resource requests/limits tanımlanmıştır. Kaynak ihtiyaçları ve kullanım sınırları Kubernetes tarafından yönetilmektedir.
+
 ---
 
 ### 3.2 Backend
@@ -115,6 +117,8 @@ Node.js / Express
 şeklinde çalışmaktadır.
 
 `backend-service` `ClusterIP` tipindedir ve doğrudan internete açılmamıştır.
+
+Backend Deployment'ında `/healthcheck/` endpoint'i üzerinden liveness ve readiness probe'ları tanımlanmıştır. CPU ve memory resource requests/limits uygulanmıştır. Tek node'lu EKS ortamında kontrollü rolling update için `maxSurge: 0` ve `maxUnavailable: 1` kullanılmıştır.
 
 ---
 
@@ -172,6 +176,8 @@ CronJob `Europe/Istanbul` timezone'u kullanarak saatlik çalışmaktadır.
 Duplicate kayıtları önlemek için GitHub repository ID'si olan `github_id` benzersiz kayıt anahtarı olarak kullanılmaktadır.
 
 Aynı repository tekrar işlendiğinde `upsert=True` ile mevcut document güncellenmektedir.
+
+ETL CronJob'unda CPU ve memory resource requests/limits tanımlanmıştır. CronJob one-shot Job'lar oluşturduğu için liveness/readiness probe kullanılmamaktadır.
 
 ---
 
@@ -265,6 +271,10 @@ Frontend ve backend stateless `Deployment` olarak çalıştırılmaktadır.
 ETL periyodik bir workload olduğu için `CronJob` olarak yapılandırılmıştır.
 
 MongoDB normal deployment'ta Kubernetes workload'u olarak çalıştırılmamaktadır; MongoDB Atlas kullanılmaktadır.
+
+Frontend ve backend Deployment'larında liveness/readiness probe'ları tanımlanmıştır. Backend `/healthcheck/`, frontend `/` endpoint'i üzerinden kontrol edilmektedir. Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits bulunmaktadır.
+
+Backend Deployment'ı tek node'lu EKS ortamına uygun olarak `maxSurge: 0` ve `maxUnavailable: 1` ile kontrollü rolling update kullanmaktadır.
 
 ---
 
@@ -365,6 +375,10 @@ GET /healthcheck/
 
 şeklindedir.
 
+Backend Deployment'ında bu endpoint hem liveness hem de readiness probe olarak kullanılmaktadır. Frontend Deployment'ında ise `/` endpoint'i liveness ve readiness probe olarak kullanılmaktadır.
+
+Bu probe'lar uygulama process'lerinin HTTP üzerinden erişilebilir ve trafik almaya hazır olup olmadığını kontrol etmektedir. Backend healthcheck MongoDB dependency'sini doğrudan doğrulamaz.
+
 CI/CD deployment sonrasında:
 
 ```text
@@ -379,7 +393,7 @@ adımları ile deployment doğrulanmaktadır.
 
 Ayrıca ETL CronJob ve Job geçmişi Kubernetes üzerinden kontrol edilmektedir.
 
-Mevcut backend healthcheck HTTP erişilebilirliğini doğrulamaktadır; MongoDB dependency'sini doğrudan kontrol eden ayrı bir Kubernetes readiness/liveness probe bulunmamaktadır.
+Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits tanımlıdır. Backend Deployment'ı tek node'lu EKS ortamında kontrollü rolling update kullanmaktadır.
 
 ---
 

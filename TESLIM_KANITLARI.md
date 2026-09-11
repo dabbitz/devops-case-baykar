@@ -47,7 +47,12 @@ Ekran görüntülerinde gerçek credential, token, parola, private key veya hass
 - **ECR image'ları (backend):** `docs/screenshots/15-ecr-images-backend.png`
 - **ECR image'ları (frontend):** `docs/screenshots/16-ecr-images-frontend.png`
 - **ECR image'ları (etl):** `docs/screenshots/17-ecr-images-etl.png`
+- **Health check ve resource tanımları (backend):** `docs/screenshots/46-eks-healthchecks-resources-backend.png`
+- **Health check ve resource tanımları (frontend):** `docs/screenshots/47-eks-healthchecks-resources-frontend.png`
+- **Health check ve resource tanımları (etl):** `docs/screenshots/48-eks-cpu-memory-limits-etl.png`
 - **Açıklama:** Uygulama AWS EKS üzerinde `devops-case-eks` cluster'ına deploy edilmiştir. Backend ve frontend Deployment'ları, Service kaynakları ve Python ETL CronJob'u EKS üzerinde çalışmaktadır. Container image'ları Amazon ECR üzerinden çekilmektedir.
+
+Backend ve frontend Deployment'larında Kubernetes liveness/readiness probe'ları tanımlanmıştır. Backend için `/healthcheck/`, frontend için `/` endpoint'i kullanılmaktadır. Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits tanımlanmıştır. Backend Deployment'ında tek node'lu EKS ortamına uygun olarak `maxSurge: 0` ve `maxUnavailable: 1` ile kontrollü rolling update yapılandırılmıştır.
 
 ### 3.3 Cloud dış erişim
 
