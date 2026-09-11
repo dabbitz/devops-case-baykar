@@ -141,7 +141,7 @@ Production ortamında:
 - Backup işlemi zamanlanmış bir Job/CronJob veya managed backup mekanizması ile otomatikleştirilmelidir.
 - Backup'lar uygulama veya cluster ortamından bağımsız bir object storage veya başka bir dayanıklı storage üzerinde tutulmalıdır.
 - Backup retention politikası otomatik olarak uygulanmalıdır.
-- Backup dosyaları şifreli şekilde saklanmalı ve yalnızca gerekli yetkilere sahip servis veya kullanıcıların erişimine izin verilmelidir (Github'a backup dosyaları push edilmemiştir, dolayısı ile bu dokümanda bahsedilen dosya yolu, verilen proje klasöründe bulunmaz).
+- Backup dosyaları şifreli şekilde saklanmalı ve yalnızca gerekli yetkilere sahip servis veya kullanıcıların erişimine izin verilmelidir (GitHub'a backup dosyaları push edilmemiştir, dolayısı ile bu dokümanda bahsedilen dosya yolu, verilen proje klasöründe bulunmaz).
 - Düzenli backup integrity ve restore testleri gerçekleştirilmelidir.
 - Daha düşük RPO gereksinimi olan sistemlerde günlük backup yerine daha sık backup veya point-in-time recovery yaklaşımı değerlendirilmelidir.
 - Restore sürecinin tamamı periyodik olarak test edilerek gerçek RTO ölçülmelidir.

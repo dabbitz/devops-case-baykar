@@ -1,6 +1,6 @@
-# 2NTECH DevOps Technical Case
+# Baykar DevOps Technical Case
 
-This repository contains the MERN application, Python ETL workload, Docker containers, Kubernetes deployments, AWS EKS environment, Amazon ECR repositories, CI/CD pipeline, and backup/restore work developed as part of the 2NTECH DevOps Technical Case.
+This repository contains the MERN application and Python ETL workload developed as part of the DevOps Technical Case, along with their containerization, Kubernetes deployment, AWS EKS, Amazon ECR, CI/CD, and backup/restore processes and documentation.
 
 ## Project Structure
 
@@ -146,7 +146,7 @@ Service    Service
    ↓         ↓
 React      Node.js
 + NGINX    + Express
-              ↓
+             ↓
           MongoDB Atlas
 ```
 
@@ -179,6 +179,7 @@ Detailed architecture diagram and component descriptions:
 - AWS IAM
 - GitHub Actions
 - GitHub OIDC
+- Trivy
 - Kubernetes RBAC
 - Envoy Gateway
 - Helm
@@ -601,6 +602,26 @@ Resource requests/limits and application health probes are also defined for the 
 
 Secret values are not embedded in the repository source code or Docker images.
 
+## Container Security Scanning
+
+The frontend, backend, and Python ETL container images are scanned using Trivy as part of the CI/CD pipeline.
+
+The Trivy scan performs the following checks:
+
+```text
+Docker images
+     ↓
+Trivy
+     ↓
+OS package vulnerabilities
+Application dependencies
+Embedded secrets
+```
+
+Scan results are reported in the GitHub Actions logs. Under the current case configuration, vulnerability findings are reported, but they do not automatically block deployment because `exit-code: 0` is used.
+
+This control fulfills the **Advanced Security** criteria for image/dependency/secret scanning in the repository.
+
 ## Python ETL
 
 The ETL retrieves repository information from the GitHub API and transfers it to MongoDB.
@@ -651,6 +672,8 @@ Python validation
         ↓
 Docker image build
         ↓
+Trivy security scan
+        ↓
 CI successful
         ↓
 GitHub OIDC
@@ -680,14 +703,15 @@ The deployment job:
 2. Builds the frontend, backend, and ETL Docker images.
 3. Tags the images with the Git commit SHA.
 4. Pushes the images to Amazon ECR.
-5. Creates the kubeconfig for the EKS cluster.
-6. Updates the Kubernetes Secret resources.
-7. Applies the Service, Deployment, and CronJob resources under `k8s/eks/`.
-8. Updates the Deployment images to the commit SHA tags.
-9. Applies the Gateway and HTTPRoute resources.
-10. Checks the backend and frontend rollout status.
-11. Performs the backend healthcheck through the AWS Load Balancer.
-12. Verifies external frontend access.
+5. The frontend, backend, and ETL images are scanned with Trivy for OS package vulnerabilities, application dependencies, and embedded secrets.
+6. Creates the kubeconfig for the EKS cluster.
+7. Updates the Kubernetes Secret resources.
+8. Applies the Service, Deployment, and CronJob resources under `k8s/eks/`.
+9. Updates the Deployment images to the commit SHA tags.
+10. Applies the Gateway and HTTPRoute resources.
+11. Checks the backend and frontend rollout status.
+12. Performs the backend healthcheck through the AWS Load Balancer.
+13. Verifies external frontend access.
 
 If a build or validation step in the CI stage fails, the `deploy-eks` job is not executed.
 
@@ -834,6 +858,7 @@ Main improvements include:
 - Amazon ECR image management
 - GitHub OIDC authentication
 - Namespace-scoped Kubernetes RBAC
+- Container image, dependency, and secret scanning with Trivy
 
 ## Rollback
 
@@ -908,4 +933,5 @@ Screenshots:
 Main case document:
 
 `DevOps_Technical_Case_EN.docx`
+
 

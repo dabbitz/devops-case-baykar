@@ -10,7 +10,7 @@ AWS ortamında dış HTTP erişimi Envoy Gateway ve HTTPRoute üzerinden sağlan
 
 Python ETL, GitHub API üzerinden repository bilgilerini almakta ve `github_id` alanı üzerinden MongoDB'deki `github_repositories` collection'ında insert/update işlemi gerçekleştirmektedir.
 
-CI/CD GitHub Actions üzerinden çalışır. `main` branch'ine yapılan başarılı push sonrasında GitHub OIDC ile AWS IAM Role alınır, image'lar Amazon ECR'a gönderilir ve AWS EKS'e deploy edilir.
+CI/CD GitHub Actions üzerinden çalışır. CI aşamasında frontend, backend ve Python ETL container image'ları Trivy ile OS package vulnerabilities, application dependencies ve embedded secrets açısından taranır. `main` branch'ine yapılan başarılı push sonrasında GitHub OIDC ile AWS IAM Role alınır, image'lar Amazon ECR'a gönderilir ve AWS EKS'e deploy edilir.
 
 Yerel Docker Desktop Kubernetes ortamı ise geliştirme ve doğrulama amacıyla korunmuştur.
 
@@ -415,6 +415,8 @@ Backend validation
 Python validation
           ↓
 Docker image build validation
+          ↓
+Trivy security scan
 ```
 
 `main` branch'ine başarılı push sonrasında gerçek cloud deployment gerçekleştirilir:
@@ -454,6 +456,8 @@ Deployment job'ı:
 - Rollout ve dış erişim kontrollerini gerçekleştirir.
 
 CI validation başarısız olursa deployment job'ı çalıştırılmaz.
+
+CI aşamasında Trivy tarafından gerçekleştirilen container security scan sonuçları GitHub Actions log'larında raporlanmaktadır. Mevcut case yapılandırmasında `exit-code: 0` kullanıldığından vulnerability bulguları raporlanır ancak deployment otomatik olarak engellenmez.
 
 ---
 
@@ -659,6 +663,9 @@ Amazon ECR
 
 GitHub Actions
     → CI/CD automation
+
+Trivy
+    → Container image / dependency / secret scanning
 
 GitHub OIDC + AWS IAM
     → Cloud authentication

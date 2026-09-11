@@ -85,7 +85,7 @@ The core case requirements have been completed, while some production-level feat
 
 For example, full IaC with Terraform/OpenTofu, Prometheus/Grafana, HPA/PDB, GitOps, canary/blue-green deployment, automated off-site backup retention, and distributed tracing were not implemented.
 
-At the same time, the solution was extended with AWS EKS, Amazon ECR, GitHub OIDC, IAM, EKS RBAC, Helm-based Envoy Gateway, non-root container hardening, and verifiable alert checks.
+In addition, the solution was extended with AWS EKS, Amazon ECR, GitHub OIDC, IAM, EKS RBAC, a Helm-based Envoy Gateway, non-root container hardening, verifiable alert checks, and Trivy-based image/dependency/secret scanning.
 
 These omitted areas can be added as separate scaling, observability, and disaster recovery layers in a production environment when required.
 
@@ -342,7 +342,7 @@ Explain the controls you implemented, or would implement in production, to reduc
 Three important risks and the corresponding controls are:
 
 1. **Secret exposure:** Secrets are managed through GitHub Actions Secrets / Kubernetes Secrets and are not embedded in source code or images.
-2. **Running containers as root:** `runAsNonRoot`, `allowPrivilegeEscalation: false`, and `capabilities.drop: ALL` are applied.
+2. **Container and image security:** `runAsNonRoot`, `allowPrivilegeEscalation: false`, and `capabilities.drop: ALL` are used. In addition, Docker images are scanned during the CI stage using Trivy for OS package vulnerabilities, application dependencies, and embedded secrets. Under the current case configuration, scan findings are reported, but deployment is not automatically blocked.
 3. **Unnecessary external exposure:** Frontend and backend are kept as `ClusterIP` Services and external access is provided through Envoy Gateway.
 
 GitHub Actions also uses OIDC for AWS access, IAM least privilege, and namespace-scoped Kubernetes RBAC.
@@ -450,6 +450,6 @@ The CI/CD flow uses GitHub OIDC with an AWS IAM Role, pushes images to Amazon EC
 
 Liveness/readiness probes, CPU/memory resource requests/limits, and a controlled rolling update configuration suitable for the single-node EKS environment have also been implemented and verified on the actual EKS environment.
 
-The core requirements specified in the case have been implemented and verified. In addition, controlled rolling updates and capacity-aware workload configuration have been implemented in the high availability/scalability area, while verified alert scenarios have been implemented in the advanced observability area.
+The core requirements specified in the case have been implemented and verified. In addition, the solution implements controlled rolling updates and capacity-aware workload configuration in the area of high availability and scalability, verified alert scenarios in advanced observability, and Trivy-based image/dependency/secret scanning in advanced security.
 
 The current solution has been completed to satisfy the case requirements. Further production improvements could include fully managed IaC, advanced monitoring and autoscaling, centralized secret management, and more advanced disaster recovery.

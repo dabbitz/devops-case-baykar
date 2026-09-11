@@ -1,6 +1,6 @@
-# 2NTECH DevOps Teknik Case
+# Baykar DevOps Teknik Case
 
-Bu repository, 2NTECH DevOps Teknik Case kapsamında geliştirilen MERN uygulaması, Python ETL iş yükü, Docker container'ları, Kubernetes deployment'ları, AWS EKS ortamı, Amazon ECR, CI/CD pipeline'ı ve backup/restore çalışmalarını içermektedir.
+Bu repository, DevOps Teknik Case kapsamında geliştirilen MERN uygulaması ve Python ETL iş yükünün containerization, Kubernetes deployment, AWS EKS, Amazon ECR, CI/CD ve backup/restore süreçleriyle birlikte dokümantasyonunu içermektedir.
 
 ## Proje Yapısı
 
@@ -147,7 +147,7 @@ Service    Service
    ↓         ↓
 React      Node.js
 + NGINX    + Express
-              ↓
+             ↓
           MongoDB Atlas
 ```
 
@@ -180,6 +180,7 @@ Ayrıntılı mimari diyagram ve bileşen açıklamaları:
 - AWS IAM
 - GitHub Actions
 - GitHub OIDC
+- Trivy
 - Kubernetes RBAC
 - Envoy Gateway
 - Helm
@@ -620,6 +621,28 @@ Kubernetes workload'larında ayrıca resource requests/limits ve uygulama health
 
 Secret değerleri repository source code'u veya Docker image içerisine gömülmemektedir.
 
+## Container Security Scanning
+
+CI/CD pipeline'ında frontend, backend ve Python ETL container image'ları Trivy kullanılarak taranmaktadır.
+
+Trivy taraması:
+
+```text
+Docker images
+     ↓
+Trivy
+     ↓
+OS package vulnerabilities
+Application dependencies
+Embedded secrets
+```
+
+kontrollerini gerçekleştirmektedir.
+
+Tarama sonuçları GitHub Actions loglarında raporlanmaktadır. Mevcut case yapılandırmasında vulnerability bulguları raporlanmakta, ancak `exit-code: 0` kullanıldığı için bulgular deployment'ı otomatik olarak engellememektedir.
+
+Bu kontrol, repository'deki **Advanced Security** kapsamındaki image/dependency/secret scanning yaklaşımını karşılamaktadır.
+
 ## Python ETL
 
 ETL, GitHub API'den repository bilgisini alarak MongoDB'ye aktarır.
@@ -670,6 +693,8 @@ Python validation
         ↓
 Docker image build
         ↓
+Trivy security scan
+        ↓
 CI başarılı
         ↓
 GitHub OIDC
@@ -699,14 +724,15 @@ Deployment job'ı:
 2. Frontend, backend ve ETL Docker image'larını build eder.
 3. Image'ları Git commit SHA ile tag'ler.
 4. Image'ları Amazon ECR'a push eder.
-5. EKS cluster'ı için kubeconfig oluşturur.
-6. Kubernetes Secret kaynaklarını günceller.
-7. `k8s/eks/` altındaki Service, Deployment ve CronJob kaynaklarını uygular.
-8. Deployment image'larını commit SHA tag'lerine günceller.
-9. Gateway ve HTTPRoute kaynaklarını uygular.
-10. Backend ve frontend rollout durumlarını kontrol eder.
-11. AWS Load Balancer üzerinden backend healthcheck gerçekleştirir.
-12. Frontend dış erişimini doğrular.
+5. Frontend, backend ve ETL image'larını Trivy ile OS package, dependency ve secret taramasından geçirir.
+6. EKS cluster'ı için kubeconfig oluşturur.
+7. Kubernetes Secret kaynaklarını günceller.
+8. `k8s/eks/` altındaki Service, Deployment ve CronJob kaynaklarını uygular.
+9. Deployment image'larını commit SHA tag'lerine günceller.
+10. Gateway ve HTTPRoute kaynaklarını uygular.
+11. Backend ve frontend rollout durumlarını kontrol eder.
+12. AWS Load Balancer üzerinden backend healthcheck gerçekleştirir.
+13. Frontend dış erişimini doğrular.
 
 CI aşamasındaki bir build veya validation adımı başarısız olduğunda `deploy-eks` job'ı çalıştırılmamaktadır.
 
@@ -856,6 +882,7 @@ Başlıca iyileştirmeler:
 - Amazon ECR image management
 - GitHub OIDC authentication
 - Namespace-scoped Kubernetes RBAC
+- Trivy ile container image, dependency ve secret scanning
 
 ## Rollback
 
@@ -934,6 +961,7 @@ Ekran görüntüleri:
 Ana case dokümanı:
 
 `DevOps_Teknik_Case_TR.docx`
+
 
 
 

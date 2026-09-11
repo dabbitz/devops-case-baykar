@@ -85,7 +85,7 @@ Temel case gereksinimleri tamamlanmış; ancak bazı production-level özellikle
 
 Örneğin Terraform/OpenTofu ile tam IaC, Prometheus/Grafana, HPA/PDB, GitOps, canary/blue-green deployment, otomatik off-site backup retention ve distributed tracing uygulanmamıştır.
 
-Buna karşılık çözüm AWS EKS, Amazon ECR, GitHub OIDC, IAM, EKS RBAC, Helm tabanlı Envoy Gateway, non-root container hardening ve doğrulanabilir alert kontrolleri ile genişletilmiştir.
+Buna karşılık çözüm AWS EKS, Amazon ECR, GitHub OIDC, IAM, EKS RBAC, Helm tabanlı Envoy Gateway, non-root container hardening, doğrulanabilir alert kontrolleri ve Trivy ile image/dependency/secret scanning ile genişletilmiştir.
 
 Üretim ortamında bu eksik alanlar gerektiğinde ayrı bir ölçekleme, gözlemlenebilirlik ve disaster recovery katmanı olarak eklenebilir.
 
@@ -346,7 +346,7 @@ Bu riskleri azaltmak için uyguladığınız veya production ortamında uygulaya
 Üç önemli risk ve alınan önlemler:
 
 1. **Secret exposure:** Secret'lar, GitHub Actions Secrets / Kubernetes Secrets üzerinden yönetilmiş, source code ve image içine gömülmemiştir.
-2. **Root container kullanımı:** `runAsNonRoot`, `allowPrivilegeEscalation: false` ve `capabilities.drop: ALL` parametreleri kullanılmıştır.
+2. **Container ve image güvenliği:** `runAsNonRoot`, `allowPrivilegeEscalation: false` ve `capabilities.drop: ALL` parametreleri kullanılmıştır. Ayrıca Docker image'ları CI aşamasında Trivy ile OS package, dependency ve secret scanning'den geçirilmektedir. Mevcut case yapılandırmasında tarama bulguları raporlanmakta ancak deployment otomatik olarak engellenmemektedir.
 3. **Gereksiz dış erişim:** Frontend ve backend, `ClusterIP` olarak bırakılmıştır ve dış erişim Envoy Gateway üzerinden sağlanmıştır.
 
 Aynı zamanda GitHub Actions AWS erişimi için OIDC, IAM least privilege ve namespace-scoped Kubernetes RBAC kullanılmıştır.
@@ -456,6 +456,6 @@ CI/CD akışında GitHub OIDC ile AWS IAM Role kullanılmış, image'lar commit 
 
 Kubernetes workload'ları için liveness/readiness probes, CPU/memory resource requests/limits ve tek node'lu EKS ortamına uygun kontrollü rolling update yapılandırması da uygulanmış ve gerçek EKS ortamında doğrulanmıştır.
 
-Ana case kriterlerinde belirtilen temel gereksinimler uygulanmış ve doğrulanmıştır. Ayrıca üst kriterlerden yüksek erişilebilirlik/ölçekleme alanında kontrollü rolling update ve kapasiteye uygun workload yapılandırması, ileri gözlemlenebilirlik alanında ise doğrulanmış alarm senaryoları uygulanmıştır.
+Ana case kriterlerinde belirtilen temel gereksinimler uygulanmış ve doğrulanmıştır. Ayrıca üst kriterlerden yüksek erişilebilirlik/ölçekleme alanında kontrollü rolling update ve kapasiteye uygun workload yapılandırması, ileri gözlemlenebilirlik alanında doğrulanmış alarm senaryoları ve ileri güvenlik alanında Trivy ile image/dependency/secret scanning uygulanmıştır.
 
 Mevcut çözüm case kapsamındaki gereksinimleri karşılayacak şekilde tamamlanmıştır. Daha ileri production ihtiyaçları olarak altyapının tamamen IaC ile yönetilmesi, gelişmiş monitoring ve autoscaling, merkezi secret management ve gelişmiş disaster recovery sonraki geliştirme alanları olarak değerlendirilebilir.

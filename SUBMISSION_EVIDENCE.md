@@ -47,9 +47,9 @@ Screenshots must not expose real credentials, tokens, passwords, private keys, o
 - **ECR images (backend):** `docs/screenshots/15-ecr-images-backend.png`
 - **ECR images (frontend):** `docs/screenshots/16-ecr-images-frontend.png`
 - **ECR images (ETL):** `docs/screenshots/17-ecr-images-etl.png`
-- **Health check and resource definitions (backend):** `docs/screenshots/46-eks-healthchecks-resources-backend.png`
-- **Health check and resource definitions (frontend):** `docs/screenshots/47-eks-healthchecks-resources-frontend.png`
-- **Health check and resource definitions (etl):** `docs/screenshots/48-eks-cpu-memory-limits-etl.png`
+- **Health check and resource definitions (backend):** `docs/screenshots/39-eks-healthchecks-resources-backend.png`
+- **Health check and resource definitions (frontend):** `docs/screenshots/40-eks-healthchecks-resources-frontend.png`
+- **Health check and resource definitions (etl):** `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
 - **Explanation:** The application has been deployed to the `devops-case-eks` cluster on AWS EKS. The backend and frontend Deployments, Service resources, and the Python ETL CronJob are running on EKS. Container images are pulled from Amazon ECR.
 
 Kubernetes liveness/readiness probes are defined for the backend and frontend Deployments. The backend uses the `/healthcheck/` endpoint, while the frontend uses the `/` endpoint. CPU and memory resource requests/limits are defined for the backend, frontend, and ETL workloads. The backend Deployment uses `maxSurge: 0` and `maxUnavailable: 1` for a controlled rolling update suitable for the single-node EKS environment.
@@ -88,7 +88,7 @@ Show that processing the same repository again did not create a duplicate and in
 - **Successful pipeline screenshot:** `docs/screenshots/23-cicd-pipeline-success.png`
 - **Screenshot showing build/image/deployment stages:** `docs/screenshots/24-build-validation-steps.png`
 - **ECR push and EKS deployment stages screenshot:** `docs/screenshots/25-build-ecr-eks-deployment-steps.png`
-- **Explanation:** A real CI/CD pipeline was successfully executed using GitHub Actions. During the CI stage, the frontend build, backend validation, Python ETL validation, and Docker image build operations were performed.
+- **Explanation:** The CI/CD pipeline has been successfully executed on GitHub Actions. During the CI stage, the frontend build, backend validation, Python ETL validation, and Docker image build processes are performed. In addition, the frontend, backend, and Python ETL container images created during the CI stage are scanned for security vulnerabilities using Trivy. Trivy checks OS packages and application dependencies for known vulnerabilities and scans the images for accidentally embedded secret information. Scan results are reported in the GitHub Actions logs. In the current case environment, vulnerability findings are reported, but deployment is not automatically blocked because `exit-code: 0` is used.
 
   After a push to the `main` branch, the `deploy-eks` job runs. The workflow assumes an AWS IAM Role using GitHub OIDC, pushes Docker images tagged with the commit SHA to Amazon ECR, connects to the EKS cluster using kubeconfig, updates Kubernetes Secrets, and applies the Service, Deployment, and CronJob resources under `k8s/eks/`.
 
@@ -189,28 +189,50 @@ The script runs the `mongodump` command with the required parameters. The manual
 
 Add evidence for any implemented logging, monitoring, alerting, Helm, Terraform, security scanning, or other advanced criteria.
 
+The evidence for the implemented logging, monitoring, alerting, security controls, and other advanced criteria is provided below.
+
+### 7.1 Advanced Criteria #3 — High Availability and Scalability: Rolling Update and Capacity Approach
+
+- **Health check and resource configuration screenshots:**
+
+  - `docs/screenshots/39-eks-healthchecks-resources-backend.png`
+  - `docs/screenshots/40-eks-healthchecks-resources-frontend.png`
+  - `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
+
+* **Explanation:** The Kubernetes workloads define CPU and memory resource requests/limits, and the backend Deployment uses a controlled `RollingUpdate` strategy with `maxSurge: 0` and `maxUnavailable: 1`. This configuration was selected to support controlled updates within the capacity constraints of the single-node EKS case environment while avoiding unnecessary resource pressure during deployment.
+
+### 7.2 Advanced Criteria #4 — Advanced Observability: Verified Alert Scenarios
+
+- **Alert check and test screenshot:** `docs/screenshots/42-alerts-check.png`
+- **Alert definition:** `scripts/check-alerts.ps1`
+- **Explanation:** The `check-alerts.ps1` script provides executable alert checks for two critical events. `ALERT-001` checks whether the ETL CronJob has failed or whether no successful run has occurred within the expected time window. `ALERT-002` checks whether the frontend or backend health endpoints are inaccessible. In test mode, both alerts were intentionally triggered and the script terminated with exit code 1. During the normal check with the system in a healthy state, no critical alert was generated and the script completed successfully.
+
+### 7.3 Advanced Criteria #5 — Advanced Security: Image / Dependency / Secret Scanning
+
+- **Trivy container security scan screenshot:** `docs/screenshots/43-trivy-security-scan.png`
+- **Explanation:** The frontend, backend, and Python ETL container images are scanned using Trivy as part of the GitHub Actions CI pipeline. The scan checks OS packages, application dependencies, and potentially embedded secrets within the images. Scan results are reported in the GitHub Actions logs, and under the current case configuration, vulnerability findings do not automatically block deployment.
+
+### 7.4 ETL Logging
+
 - **ETL log screenshot:** `docs/screenshots/21-etl-update-without-duplicate.png`
 - **Explanation:** The logs of the ETL CronJob running on Kubernetes show the retrieval of the GitHub repository, the MongoDB connection, the update of the existing repository using `github_id`, the document count check, and the successful completion of the ETL process.
-- **EKS CronJob schedule screenshot:** `docs/screenshots/39-eks-cronjob-schedule.png`
+
+### 7.5 ETL Scheduling
+
+- **EKS CronJob schedule screenshot:** `docs/screenshots/44-eks-cronjob-schedule.png`
 - **Explanation:** The `etl` CronJob running on EKS is shown to use the `0 * * * *` schedule for hourly execution and the `Europe/Istanbul` timezone.
 
 ## 8. Additional Evidence
 
-### 8.1 Critical Alerts
+### 8.1 Kubernetes Security Hardening
 
-- **Alert check and test screenshot:** `docs/screenshots/40-alerts-check.png`
-- **Alert definition:** `scripts/check-alerts.ps1`
-- **Explanation:** The `check-alerts.ps1` script provides executable alert checks for two critical events. `ALERT-001` checks whether the ETL CronJob has failed or whether no successful run has occurred within the expected time window. `ALERT-002` checks whether the frontend or backend health endpoints are inaccessible. In test mode, both alerts were intentionally triggered and the script terminated with exit code 1. During the normal check with the system in a healthy state, no critical alert was generated and the script completed successfully.
-
-### 8.2 Kubernetes Security Hardening
-
-- **Backend non-root evidence:** `docs/screenshots/41-backend-non-root-kubernetes.png`
-- **Frontend non-root evidence:** `docs/screenshots/42-frontend-non-root-kubernetes.png`
-- **ETL non-root evidence:** `docs/screenshots/43-etl-non-root-kubernetes.png`
+- **Backend non-root evidence:** `docs/screenshots/45-backend-non-root-kubernetes.png`
+- **Frontend non-root evidence:** `docs/screenshots/46-frontend-non-root-kubernetes.png`
+- **ETL non-root evidence:** `docs/screenshots/47-etl-non-root-kubernetes.png`
 - **Explanation:** The Kubernetes workloads were verified not to run as the root user. The backend runs as `node` (UID 1000), the frontend as `nginx` (UID 101), and the ETL as `appuser` (UID 10001). In addition, `allowPrivilegeEscalation` is disabled and all Linux capabilities are dropped.
 
-### 8.3 AWS / EKS deployment configuration
+### 8.2 AWS / EKS deployment configuration
 
-- **EKS cluster and node status:** `docs/screenshots/44-eks-cluster-config.png`
-- **EKS managed node group configuration:** `docs/screenshots/45-eks-node-group-config.png`
+- **EKS cluster and node status:** `docs/screenshots/48-eks-cluster-config.png`
+- **EKS managed node group configuration:** `docs/screenshots/49-eks-node-group-config.png`
 - **Explanation:** The `devops-case-eks` EKS cluster is shown to be running in the `eu-central-1` region with a `Ready` worker node. The running node uses Kubernetes `v1.36.3` and Amazon Linux 2023. The EKS managed node group is configured with the name `devops-workers` and uses the `t3.small` instance type with 1 desired node. The cluster and node group configuration is defined in the repository's `eks-cluster.yaml` file.
