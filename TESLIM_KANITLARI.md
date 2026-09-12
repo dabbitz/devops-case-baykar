@@ -90,9 +90,11 @@ Aynı repository tekrar işlendiğinde duplicate kayıt oluşmadığını ve mev
 - **ECR push ve EKS deployment aşamalarını gösteren görsel:** `docs/screenshots/25-build-ecr-eks-deployment-steps.png`
 - **Açıklama:** GitHub Actions üzerinde gerçek CI/CD pipeline başarıyla çalıştırılmıştır. CI aşamasında frontend build, backend validation, Python ETL validation ve Docker image build işlemleri gerçekleştirilmiştir. Ayrıca CI aşamasında oluşturulan frontend, backend ve Python ETL container image'ları Trivy ile güvenlik taramasından geçirilmektedir. Trivy; image içerisindeki OS paketleri ve uygulama dependency'leri için bilinen vulnerability'leri ve image içerisinde yanlışlıkla bulunabilecek secret bilgileri kontrol etmektedir. Tarama sonuçları GitHub Actions loglarında raporlanmaktadır. Mevcut case ortamında vulnerability bulguları raporlanmakta ancak `exit-code: 0` kullanıldığı için deployment otomatik olarak engellenmemektedir.
 
-  `main` branch'ine yapılan push sonrasında `deploy-eks` job'ı çalışmaktadır. Workflow, GitHub OIDC ile AWS IAM Role'u assume etmekte, Docker image'larını commit SHA tag'i ile Amazon ECR'a push etmekte, EKS cluster'ına kubeconfig ile bağlanmakta, Kubernetes Secret'larını güncellemekte ve `k8s/eks/` altındaki Service, Deployment ve CronJob kaynaklarını uygulamaktadır.
+  `main` branch'ine yapılan push sonrasında `deploy-eks` job'ı çalışmaktadır. Workflow, GitHub OIDC ile AWS IAM Role'u assume etmekte, Docker image'larını commit SHA tag'i ile Amazon ECR'a push etmekte, EKS cluster'ına kubeconfig ile bağlanmakta ve Kubernetes Secret'larını güncellemektedir.
 
-  Deployment sonrasında backend ve frontend için rollout durumu kontrol edilmekte, Gateway ve HTTPRoute kaynakları doğrulanmakta ve AWS Load Balancer üzerinden backend healthcheck ile frontend erişimi otomatik olarak test edilmektedir.
+  Deployment aşamasında `k8s/overlays/prod` Kustomize overlay'i önce `kubectl apply --dry-run=server -k k8s/overlays/prod` ile doğrulanmakta, ardından `kubectl apply -k k8s/overlays/prod` ile EKS ortamına uygulanmaktadır. Sonrasında image'lar commit SHA tag'leri ile güncellenmekte ve backend, frontend ve ETL workload'larının rollout durumları kontrol edilmektedir.
+
+  Deployment sonrasında Gateway ve HTTPRoute kaynakları doğrulanmakta ve AWS Load Balancer üzerinden backend healthcheck ile frontend erişimi otomatik olarak test edilmektedir.
 
   CI aşamasındaki bir build veya validation adımı başarısız olduğunda `deploy-eks` job'ı çalıştırılmamaktadır. Böylece yalnızca başarılı bir CI sonucundan sonra cloud deployment gerçekleştirilmektedir.
 
@@ -193,48 +195,62 @@ Uyguladığınız logging, monitoring, alarm, Helm, Terraform, güvenlik taramas
 
 Uygulanan logging, monitoring, alarm, güvenlik ve diğer üst kriterlere ait kanıtlar aşağıda verilmiştir.
 
-### 7.1 Üst Kriter #3 - Yüksek Erişilebilirlik ve Ölçekleme: Rolling Update ve Kapasite Yaklaşımı
+### 7.1 Üst Kriter #2 - Paketleme ve Ortam Yönetimi: Kustomize
+
+- **Backend environment kanıtı:** `docs/screenshots/39-kustomize-backend-dev-test-prod.png`
+- **Frontend environment kanıtı:** `docs/screenshots/40-kustomize-frontend-dev-test-prod.png`
+- **Açıklama:** Kubernetes kaynakları Kustomize kullanılarak base ve environment overlay yapısında yönetilmektedir. Ortak kaynaklar `k8s/eks/` altında tutulmakta, `k8s/overlays/dev`, `k8s/overlays/test` ve `k8s/overlays/prod` altında ortam bazlı farklılıklar tanımlanmaktadır.
+
+  Backend ve frontend için CPU request değerleri dev/test/prod ortamlarında sırasıyla `50m / 75m / 100m` olarak yapılandırılmış, memory request ise tek `t3.small` worker node üzerinde scheduling sorunlarını önlemek amacıyla tüm ortamlarda `32Mi` olarak tutulmuştur. Deployment replica sayısı mevcut Free Tier / tek node kapasitesi nedeniyle tüm ortamlarda `1` olarak bırakılmıştır.
+
+  Ortamlar arasında değişmesi gerekmeyen ETL CronJob yapılandırması ortak base üzerinden yönetilmektedir. Secret değerleri ise düz metin olarak Kustomize dosyalarına yazılmayıp Kubernetes Secret kaynakları üzerinden sağlanmaktadır.
+
+  AWS EKS deployment'ında production ortamı için `k8s/overlays/prod` kullanılmıştır. Kustomize çıktısı deployment öncesinde server-side dry-run ile doğrulanmakta ve ardından `kubectl apply -k k8s/overlays/prod` ile uygulanmaktadır.
+
+  `GatewayClass` cluster-scoped bir kaynak olduğu ve GitHub Actions'ın namespace ile sınırlı RBAC yetkileri kullandığı için Kustomize base içerisine dahil edilmemiştir. EKS cluster'ında mevcut olan GatewayClass kullanılmaktadır; böylece deployment için gereksiz cluster-wide yetki verilmemiştir.
+
+### 7.2 Üst Kriter #3 - Yüksek Erişilebilirlik ve Ölçekleme: Rolling Update ve Kapasite Yaklaşımı
 
 - **Health check ve resource yapılandırması ekran görüntüleri:**
 
-  - `docs/screenshots/39-eks-healthchecks-resources-backend.png`
-  - `docs/screenshots/40-eks-healthchecks-resources-frontend.png`
-  - `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
+  - `docs/screenshots/41-eks-healthchecks-resources-backend.png`
+  - `docs/screenshots/42-eks-healthchecks-resources-frontend.png`
+  - `docs/screenshots/43-eks-cpu-memory-limits-etl.png`
 
-- **Rolling update görseli:** `docs/screenshots/42-eks-rolling-update.png`
-- **Açıklama:** Kubernetes workload'larında CPU ve memory resource requests/limits tanımlanmıştır. Backend Deployment'ında `maxSurge: 1` ve `maxUnavailable: 0` değerleri kullanılarak kontrollü bir `RollingUpdate` stratejisi uygulanmıştır. Deployment sırasında yeni Pod önce oluşturulmakta ve readiness probe ile hazır olduğu doğrulanmadan eski Pod sonlandırılmamaktadır. Böylece sürüm geçişi `v1 → v1 + v2 → v2` şeklinde gerçekleşmektedir. Bu davranış EKS ortamında gerçek rollout sırasında doğrulanmış ve `docs/screenshots/42-eks-rolling-update.png` ile kanıtlanmıştır.
+- **Rolling update görseli:** `docs/screenshots/44-eks-rolling-update.png`
+- **Açıklama:** Kubernetes workload'larında CPU ve memory resource requests/limits tanımlanmıştır. Backend Deployment'ında `maxSurge: 1` ve `maxUnavailable: 0` değerleri kullanılarak kontrollü bir `RollingUpdate` stratejisi uygulanmıştır. Deployment sırasında yeni Pod önce oluşturulmakta ve readiness probe ile hazır olduğu doğrulanmadan eski Pod sonlandırılmamaktadır. Böylece sürüm geçişi `v1 → v1 + v2 → v2` şeklinde gerçekleşmektedir. Bu davranış EKS ortamında gerçek rollout sırasında doğrulanmış ve `docs/screenshots/44-eks-rolling-update.png` ile kanıtlanmıştır.
 
-### 7.2 Üst Kriter #4 - İleri Gözlemlenebilirlik: Doğrulanmış Alarm Senaryoları
+### 7.3 Üst Kriter #4 - İleri Gözlemlenebilirlik: Doğrulanmış Alarm Senaryoları
 
-- **Alert kontrolü ve test görseli:** `docs/screenshots/43-alerts-check.png`
+- **Alert kontrolü ve test görseli:** `docs/screenshots/45-alerts-check.png`
 - **Alert tanımı:** `scripts/check-alerts.ps1`
 - **Açıklama:** `check-alerts.ps1` script'i iki kritik olay için çalıştırılabilir alarm kontrolü sağlamaktadır. `ALERT-001`, ETL CronJob'un başarısız olup olmadığını veya beklenen zaman aralığında başarılı bir çalışmanın bulunup bulunmadığını kontrol etmektedir. `ALERT-002`, frontend veya backend health endpoint'lerinin erişilememesi durumunu kontrol etmektedir. Test modunda her iki alarm da bilinçli olarak tetiklenmiş ve script `exit code 1` ile sonlandırılmıştır. Sistem sağlıklı durumdayken gerçekleştirilen normal kontrolde ise kritik alarm üretilmemiş ve script başarılı şekilde sonlanmıştır.
 
-### 7.3 Üst Kriter #5 - İleri Güvenlik: Image / Dependency / Secret Taraması
+### 7.4 Üst Kriter #5 - İleri Güvenlik: Image / Dependency / Secret Taraması
 
-- **Trivy container security scan görseli:** `docs/screenshots/44-trivy-security-scan.png`
+- **Trivy container security scan görseli:** `docs/screenshots/46-trivy-security-scan.png`
 - **Açıklama:** Frontend, backend ve Python ETL container image'ları GitHub Actions CI pipeline'ının bir parçası olarak Trivy kullanılarak taranmaktadır. Tarama kapsamında OS paketleri, uygulama dependency'leri ve image içerisinde bulunabilecek secret bilgiler kontrol edilmektedir. Tarama sonuçları GitHub Actions loglarında raporlanmakta ve mevcut case yapılandırmasında vulnerability bulguları deployment'ı otomatik olarak engellememektedir.
 
-### 7.4 ETL Logging
+### 7.5 ETL Logging
 
 - **ETL log görseli:** `docs/screenshots/21-etl-update-without-duplicate.png`
 - **Açıklama:** Kubernetes üzerinde çalışan ETL CronJob'un logları GitHub repository'sinin alınmasını, MongoDB bağlantısını, mevcut repository'nin `github_id` kullanılarak güncellenmesini, document count kontrolünü ve ETL işleminin başarıyla tamamlanmasını göstermektedir.
 
-### 7.5 ETL Scheduling
-- **EKS CronJob schedule görseli:** `docs/screenshots/45-eks-cronjob-schedule.png`
+### 7.6 ETL Scheduling
+- **EKS CronJob schedule görseli:** `docs/screenshots/47-eks-cronjob-schedule.png`
 - **Açıklama:** EKS üzerinde çalışan `etl` CronJob'un saatlik çalışmak üzere `0 * * * *` schedule'ını ve `Europe/Istanbul` timezone'unu kullandığı gösterilmektedir.
 
 ## 8. Ek Kanıtlar
 
 ### 8.1 Kubernetes Güvenlik Sertleştirmesi
 
-- **Backend non-root kanıtı:** `docs/screenshots/46-backend-non-root-kubernetes.png`
-- **Frontend non-root kanıtı:** `docs/screenshots/47-frontend-non-root-kubernetes.png`
-- **ETL non-root kanıtı:** `docs/screenshots/48-etl-non-root-kubernetes.png`
+- **Backend non-root kanıtı:** `docs/screenshots/48-backend-non-root-kubernetes.png`
+- **Frontend non-root kanıtı:** `docs/screenshots/49-frontend-non-root-kubernetes.png`
+- **ETL non-root kanıtı:** `docs/screenshots/50-etl-non-root-kubernetes.png`
 - **Açıklama:** Kubernetes workload'larının root kullanıcıyla çalışmadığı doğrulanmıştır. Backend `node` (UID 1000), frontend `nginx` (UID 101) ve ETL `appuser` (UID 10001) olarak çalışmaktadır. Ayrıca `allowPrivilegeEscalation` devre dışı bırakılmış ve tüm Linux capabilities drop edilmiştir.
 
 ### 8.2 AWS / EKS Deployment Yapılandırması
 
-- **EKS cluster ve node durumu:** `docs/screenshots/49-eks-cluster-config.png`
-- **EKS managed node group yapılandırması:** `docs/screenshots/50-eks-node-group-config.png`
-- **Açıklama:** `devops-case-eks` EKS cluster'ının `eu-central-1` region'ında çalıştığı ve `Ready` durumunda bir worker node'a sahip olduğu gösterilmektedir. Çalışan node Kubernetes `v1.36.3` ve Amazon Linux 2023 kullanmaktadır. EKS managed node group'u `devops-workers` adıyla ve `t3.small` instance type'ı kullanılarak 1 adet desired node ile yapılandırılmıştır. Cluster ve node group yapılandırması repository içerisindeki `eks-cluster.yaml` dosyasında tanımlanmıştır.
+- **EKS cluster ve node durumu:** `docs/screenshots/51-eks-cluster-config.png`
+- **EKS managed node group yapılandırması:** `docs/screenshots/52-eks-node-group-config.png`
+- **Açıklama:** `devops-case-eks` EKS cluster'ının `eu-central-1` region'ında çalıştığı ve `Ready` durumunda bir worker node'a sahip olduğu gösterilmektedir. Çalışan node Kubernetes `v1.36.3` ve Amazon Linux 2023 kullanmaktadır. EKS managed node group'u `devops-workers` adıyla ve `t3.small` instance type'ı kullanılarak 1 adet desired node ile yapılandırılmıştır. Cluster ve node group yapılandırması repository içerisindeki `eks-cluster.yaml` dosyasında tanımlanmıştır. Kubernetes workload'larının ortam bazlı yapılandırması Kustomize overlay'leri ile yönetilmekte ve production deployment `k8s/overlays/prod` üzerinden gerçekleştirilmektedir.

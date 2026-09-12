@@ -1,6 +1,6 @@
 # Baykar DevOps Technical Case
 
-This repository contains the MERN application and Python ETL workload developed as part of the DevOps Technical Case, along with their containerization, Kubernetes deployment, AWS EKS, Amazon ECR, CI/CD, and backup/restore processes and documentation.
+This repository contains the MERN application and Python ETL workload developed as part of the DevOps Technical Case, along with their containerization, Kubernetes deployment, AWS EKS, Amazon ECR, CI/CD, backup/restore, and environment management processes and documentation.
 
 ## Project Structure
 
@@ -8,69 +8,79 @@ This repository contains the MERN application and Python ETL workload developed 
 DevOps_Case_Final/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                   # GitHub Actions CI/CD pipeline
+│       └── ci.yml                         # GitHub Actions CI/CD pipeline
 │
 ├── docs/
-│   ├── screenshots/                 # Evidence screenshots
-│   ├── architecture.md              # System architecture and request flow
-│   ├── backup-restore.md            # Backup/restore runbook
-│   └── findings.md                  # Issues identified in the initial application
+│   ├── screenshots/                       # Evidence screenshots
+│   ├── architecture.md                    # System architecture and request flow
+│   ├── backup-restore.md                  # Backup/restore runbook
+│   └── findings.md                        # Issues identified in the initial application
 │
 ├── k8s/
-│   └── eks/
-│   │   ├── backend-deployment.yaml  # EKS backend Deployment
-│   │   ├── backend-service.yaml     # EKS backend ClusterIP Service
-│   │   ├── cd-rbac.yaml             # GitHub Actions Kubernetes RBAC
-│   │   ├── etl-cronjob.yaml         # EKS hourly Python ETL CronJob
-│   │   ├── frontend-deployment.yaml # EKS frontend Deployment
-│   │   ├── frontend-service.yaml    # EKS frontend ClusterIP Service
-│   │   ├── gateway.yaml             # EKS Envoy Gateway
-│   │   ├── gatewayclass.yaml        # EKS Envoy GatewayClass
-│   │   └── http-route.yaml          # EKS HTTPRoute
-│   ├── backend-deployment.yaml      # Local Kubernetes backend Deployment
-│   ├── backend-service.yaml         # Local Kubernetes backend ClusterIP Service
-│   ├── ci-mongodb.yaml              # Temporary MongoDB for CI/CD
-│   ├── etl-cronjob.yaml             # Local Kubernetes hourly Python ETL CronJob
-│   ├── frontend-deployment.yaml     # Local Kubernetes frontend Deployment
-│   ├── frontend-service.yaml        # Local Kubernetes frontend ClusterIP Service
-│   ├── gateway.yaml                 # Envoy Gateway
-│   ├── gatewayclass.yaml            # Envoy GatewayClass
-│   ├── http-route.yaml              # HTTPRoute
-│   └── namespace.yaml               # Local Kubernetes namespace
+│   ├── eks/                               # Shared EKS Kubernetes resources
+│   │   ├── backend-deployment.yaml        # EKS backend Deployment
+│   │   ├── backend-service.yaml           # EKS backend ClusterIP Service
+│   │   ├── cd-rbac.yaml                   # GitHub Actions Kubernetes RBAC
+│   │   ├── etl-cronjob.yaml               # EKS hourly Python ETL CronJob
+│   │   ├── frontend-deployment.yaml       # EKS frontend Deployment
+│   │   ├── frontend-service.yaml          # EKS frontend ClusterIP Service
+│   │   ├── gateway.yaml                   # EKS Envoy Gateway
+│   │   ├── gatewayclass.yaml              # EKS Envoy Gateway Class
+│   │   ├── http-route.yaml                # EKS HTTPRoute
+│   │   └── kustomization.yaml             # EKS Kustomize base
+│   │
+│   ├── overlays/
+│   │   ├── dev/
+│   │   │   └── kustomization.yaml         # Development overlay
+│   │   ├── prod/
+│   │   │   └── kustomization.yaml         # Production overlay
+│   │   └── test/
+│   │       └── kustomization.yaml         # Test overlay
+│   │
+│   ├── backend-deployment.yaml            # Local Kubernetes backend Deployment
+│   ├── backend-service.yaml               # Local Kubernetes backend ClusterIP Service
+│   ├── ci-mongodb.yaml                    # Temporary MongoDB for CI/CD
+│   ├── etl-cronjob.yaml                   # Local Kubernetes hourly Python ETL CronJob
+│   ├── frontend-deployment.yaml           # Local Kubernetes frontend Deployment
+│   ├── frontend-service.yaml              # Local Kubernetes frontend ClusterIP Service
+│   ├── gateway.yaml                       # Local Envoy Gateway
+│   ├── gatewayclass.yaml                  # Local Envoy GatewayClass
+│   ├── http-route.yaml                    # Local HTTPRoute
+│   └── namespace.yaml                     # Local Kubernetes namespace
 │
 ├── mern-project/
-│   ├── client/                      # React frontend
-│   ├── server/                      # Express.js backend
-│   └── .gitignore                   # .gitignore file for the mern-project folder
+│   ├── client/                            # React frontend
+│   ├── server/                            # Express.js backend
+│   └── .gitignore                         # .gitignore file for the mern-project folder
 │
 ├── python-project/
-│   ├── .dockerignore                # .dockerignore file for the python-project folder
-│   ├── Dockerfile                   # ETL container image
-│   ├── ETL.py                       # Current ETL implementation
-│   ├── README.md                    # ETL introductory documentation
-│   └── requirements.txt             # Python dependencies
+│   ├── .dockerignore                      # .dockerignore file for the python-project folder
+│   ├── Dockerfile                         # ETL container image
+│   ├── ETL.py                             # Current ETL implementation
+│   ├── README.md                          # ETL introductory documentation
+│   └── requirements.txt                   # Python dependencies
 │
 ├── scripts/
-│   ├── backup-restore.ps1           # MongoDB backup/restore script
-│   └── check-alerts.ps1             # Critical alert checks
+│   ├── backup-restore.ps1                 # MongoDB backup/restore script
+│   └── check-alerts.ps1                   # Critical alert checks
 │
-├── .gitignore                       # .gitignore file of the project
-├── CASE_END_ANSWERS.md              # English case answers
-├── CASE_SONU_CEVAPLARI.md           # Turkish case answers
-├── DevOps_Technical_Case_EN.docx    # English case document
-├── DevOps_Teknik_Case_TR.docx       # Turkish case document
-├── docker-compose.yml               # Local Docker Compose environment
-├── eks-cluster.yaml                 # AWS EKS cluster and node group configuration
-├── README_EN.md                     # English project and execution documentation
-├── README.md                        # Turkish project and execution documentation
-├── setup-k8s.ps1                    # Local Kubernetes setup/verification script
-├── SUBMISSION_EVIDENCE.md           # English submission evidence
-└── TESLIM_KANITLARI.md              # Turkish submission evidence
+├── .gitignore                             # Project .gitignore file
+├── CASE_END_ANSWERS.md                    # English case answers
+├── CASE_SONU_CEVAPLARI.md                 # Turkish case answers
+├── DevOps_Technical_Case_EN.docx          # English case document
+├── DevOps_Teknik_Case_TR.docx             # Turkish case document
+├── docker-compose.yml                     # Local Docker Compose environment
+├── eks-cluster.yaml                       # AWS EKS cluster and node group configuration
+├── README_EN.md                           # English project and execution documentation
+├── README.md                              # Turkish project and execution documentation
+├── setup-k8s.ps1                          # Local Kubernetes setup/verification script
+├── SUBMISSION_EVIDENCE.md                 # English submission evidence
+└── TESLIM_KANITLARI.md                    # Turkish submission evidence
 ```
 
 ## Current AWS EKS Deployment
 
-The application was accessed through the AWS EKS deployment used during the project. The AWS Load Balancer hostnames shown in the addresses below are displayed as `[REDACTED]` in the public repository to avoid unnecessarily exposing cloud environment details.
+The application was accessed through the AWS EKS deployment used during the project. The AWS Load Balancer hostnames shown below are displayed as `[REDACTED]` in the public repository to avoid unnecessarily exposing cloud environment details.
 
 **Application:**
 
@@ -110,7 +120,8 @@ For example:
 
 ```text
 NAME                                      TYPE           CLUSTER-IP      EXTERNAL-IP
-envoy-devops-case-devops-gateway-...     LoadBalancer   10.x.x.x        <AWS Load Balancer hostname>
+
+envoy-devops-case-devops-gateway-...      LoadBalancer   10.x.x.x        <AWS Load Balancer hostname>
 ```
 
 To view the current hostname in more detail:
@@ -119,7 +130,7 @@ To view the current hostname in more detail:
 kubectl get svc -n envoy-gateway-system -o wide
 ```
 
-The `<AWS Load Balancer hostname>` value can then be used to construct the application addresses as follows:
+The `<AWS Load Balancer hostname>` value can then be used to construct the application addresses:
 
 ```text
 http://<EXTERNAL-IP>/
@@ -148,19 +159,11 @@ Service    Service
    ↓         ↓
 React      Node.js
 + NGINX    + Express
-             ↓
-          MongoDB Atlas
+              ↓
+         MongoDB Atlas
 ```
 
-The Python ETL runs as a separate workflow, retrieving repository information from the GitHub API and updating the `github_repositories` collection in MongoDB:
-
-```text
-GitHub API
-    ↓
-Python ETL
-    ↓
-MongoDB Atlas
-```
+The Python ETL runs as a separate workflow, retrieving repository information from the GitHub API and updating the `github_repositories` collection in MongoDB.
 
 In the local Kubernetes environment, the application can be accessed through the local Envoy Gateway instead of the AWS Elastic Load Balancer.
 
@@ -176,6 +179,7 @@ Detailed architecture diagram and component descriptions:
 - Python
 - Docker / Docker Compose
 - Kubernetes
+- Kustomize
 - AWS EKS
 - Amazon ECR
 - AWS IAM
@@ -186,6 +190,8 @@ Detailed architecture diagram and component descriptions:
 - Envoy Gateway
 - Helm
 - Kind
+
+> Helm is used for installing Kubernetes dependencies such as Envoy Gateway. The application's own Kubernetes resources are managed using Kustomize.
 
 ## Requirements
 
@@ -293,27 +299,19 @@ Secret values are not hardcoded into the workflow file or source code.
 
 The primary deployment environment of the project is AWS EKS. The repository defines the AWS EKS cluster, ECR image repositories, and GitHub Actions-based CI/CD deployment structure.
 
-The basic flow for the existing cloud deployment is:
+General deployment flow:
 
 ```text
 Repository
-        ↓
-MongoDB Atlas setup
-        ↓
-GitHub Actions Secrets
-        ↓
-Push to main branch
-        ↓
-CI validation
-        ↓
-GitHub OIDC
-        ↓
-AWS IAM Role
-        ↓
+    ↓
+GitHub Actions
+    ↓
 Amazon ECR
-        ↓
+    ↓
 AWS EKS
-        ↓
+    ↓
+Kustomize production overlay
+    ↓
 Frontend / Backend / ETL
 ```
 
@@ -333,12 +331,6 @@ Node instance type:
 t3.small
 ```
 
-The manifests used for the EKS deployment are located under:
-
-```text
-k8s/eks/
-```
-
 To inspect the AWS EKS environment:
 
 ```powershell
@@ -355,31 +347,6 @@ External cloud access is provided through the AWS Elastic Load Balancer created 
 The local execution methods below can still be used when local development or testing is required.
 
 ---
-
-## Alternative: Docker Compose
-
-To validate the local container environment without Kubernetes:
-
-```powershell
-docker compose build
-docker compose up -d
-```
-
-Then verify:
-
-```text
-Frontend:
-http://localhost:3000
-
-Backend:
-http://localhost:5050/healthcheck/
-```
-
-Stop the Compose environment with:
-
-```powershell
-docker compose down
-```
 
 ## Running the MERN Application
 
@@ -419,7 +386,7 @@ GET /healthcheck/
 
 ## Docker Compose
 
-To run all application components as containers from the project root:
+To validate the local container environment without Kubernetes:
 
 ```powershell
 docker compose build
@@ -503,13 +470,7 @@ http://localhost/api/healthcheck/
 
 ## AWS EKS Deployment
 
-AWS EKS-specific Kubernetes manifests are located under:
-
-```text
-k8s/eks/
-```
-
-The EKS deployment consists of:
+The AWS EKS deployment runs the frontend, backend, and Python ETL workloads on Kubernetes.
 
 ```text
 Frontend → Deployment + ClusterIP Service + liveness/readiness probes
@@ -522,6 +483,8 @@ Routing  → HTTPRoute
 Container images are pulled from Amazon ECR.
 
 CPU and memory resource requests/limits are defined for the backend, frontend, and ETL workloads.
+
+Environment-specific Kubernetes configuration is managed through Kustomize overlays; see **Kustomize Environment Management** for details.
 
 To inspect workloads running on EKS:
 
@@ -544,29 +507,65 @@ Backend healthcheck:
 
 This endpoint is accessible through the AWS Load Balancer.
 
+The `GatewayClass` is a cluster-scoped resource and is therefore not included in the EKS Kustomize base. The existing Envoy GatewayClass in the EKS cluster is reused, avoiding unnecessary cluster-wide permissions for the GitHub Actions deployment role.
+
+## Kustomize Environment Management
+
+The application's Kubernetes resources are managed using Kustomize with a shared base and environment-specific overlays.
+
+Shared EKS resources:
+
+```text
+k8s/eks/
+```
+
+Environment overlays:
+
+```text
+k8s/overlays/dev/
+k8s/overlays/test/
+k8s/overlays/prod/
+```
+
+Backend and frontend CPU requests are environment-specific, while memory requests are kept at `32Mi` across environments because of the capacity of the single `t3.small` worker node:
+
+| Environment |  CPU | Memory |
+| ----------- | ---: | -----: |
+| dev         |  50m |   32Mi |
+| test        |  75m |   32Mi |
+| prod        | 100m |   32Mi |
+
+The deployment replica count is kept at `1` across environments.
+
+The ETL CronJob uses the shared base because no meaningful environment-specific differences are required.
+
+Secret values are not stored as plaintext in the Kustomize files. Sensitive values are provided through Kubernetes Secret resources.
+
+Before production deployment, the Kustomize output is validated with a server-side dry run:
+
+```powershell
+kubectl apply --dry-run=server -k k8s/overlays/prod
+```
+
+The production overlay is then applied:
+
+```powershell
+kubectl apply -k k8s/overlays/prod
+```
+
+To inspect the generated Kustomize manifests:
+
+```powershell
+kubectl kustomize .\k8s\overlays\dev
+kubectl kustomize .\k8s\overlays\test
+kubectl kustomize .\k8s\overlays\prod
+```
+
 ## Kubernetes Workloads
-
-Frontend:
-
-```text
-Deployment + ClusterIP Service + liveness/readiness probes + CPU/memory requests/limits
-```
-
-Backend:
-
-```text
-Deployment + ClusterIP Service + liveness/readiness probes + CPU/memory requests/limits + controlled rolling update
-```
-
-Python ETL:
-
-```text
-CronJob + CPU/memory requests/limits
-```
 
 Kubernetes liveness/readiness probes are defined for the backend and frontend. The backend is monitored through the `/healthcheck/` endpoint, while the frontend is monitored through the `/` endpoint.
 
-CPU and memory resource requests/limits are defined for all application workloads. The backend Deployment is configured with `maxSurge: 1` and `maxUnavailable: 0` to support controlled rolling updates in the single-node EKS environment. The old Pod is terminated only after the new Pod is ready according to the readiness probe, resulting in a `v1 → v1 + v2 → v2` transition.
+The backend Deployment is configured with `maxSurge: 1` and `maxUnavailable: 0` to support controlled rolling updates in the single-node EKS environment. The old Pod is terminated only after the new Pod is ready according to the readiness probe, resulting in a `v1 → v1 + v2 → v2` transition.
 
 ETL schedule:
 
@@ -600,7 +599,7 @@ capabilities:
     - ALL
 ```
 
-Resource requests/limits and application health probes are also defined for the Kubernetes workloads, allowing Kubernetes to manage resource usage and monitor workload health.
+Resource requests/limits and application health probes are also defined for the Kubernetes workloads.
 
 Secret values are not embedded in the repository source code or Docker images.
 
@@ -622,21 +621,11 @@ Embedded secrets
 
 Scan results are reported in the GitHub Actions logs. Under the current case configuration, vulnerability findings are reported, but they do not automatically block deployment because `exit-code: 0` is used.
 
-This control fulfills the **Advanced Security** criteria for image/dependency/secret scanning in the repository.
+This control provides image, dependency, and secret scanning as part of the CI/CD security checks.
 
 ## Python ETL
 
 The ETL retrieves repository information from the GitHub API and transfers it to MongoDB.
-
-Basic flow:
-
-```text
-GitHub API
-    ↓
-Python ETL
-    ↓
-MongoDB Atlas
-```
 
 The ETL runs hourly on Kubernetes.
 
@@ -686,7 +675,11 @@ Amazon ECR image push
         ↓
 AWS EKS authentication
         ↓
-Kubernetes deployment
+Kustomize production overlay validation
+        ↓
+Kustomize production deployment
+        ↓
+Image update with commit SHA
         ↓
 Rollout verification
         ↓
@@ -705,15 +698,16 @@ The deployment job:
 2. Builds the frontend, backend, and ETL Docker images.
 3. Tags the images with the Git commit SHA.
 4. Pushes the images to Amazon ECR.
-5. The frontend, backend, and ETL images are scanned with Trivy for OS package vulnerabilities, application dependencies, and embedded secrets.
+5. Scans the frontend, backend, and ETL images with Trivy for OS package vulnerabilities, application dependencies, and embedded secrets.
 6. Creates the kubeconfig for the EKS cluster.
 7. Updates the Kubernetes Secret resources.
-8. Applies the Service, Deployment, and CronJob resources under `k8s/eks/`.
-9. Updates the Deployment images to the commit SHA tags.
-10. Applies the Gateway and HTTPRoute resources.
+8. Validates the production Kustomize overlay using `kubectl apply --dry-run=server -k k8s/overlays/prod`.
+9. Applies the production overlay using `kubectl apply -k k8s/overlays/prod`.
+10. Updates the Deployment images to the corresponding commit SHA tags.
 11. Checks the backend and frontend rollout status.
-12. Performs the backend healthcheck through the AWS Load Balancer.
-13. Verifies external frontend access.
+12. Verifies the Gateway and HTTPRoute resources.
+13. Performs the backend healthcheck through the AWS Load Balancer.
+14. Verifies external frontend access.
 
 If a build or validation step in the CI stage fails, the `deploy-eks` job is not executed.
 
@@ -745,13 +739,7 @@ The GitHub Actions IAM Role is mapped through an EKS Access Entry to the followi
 github-actions-deploy
 ```
 
-A Kubernetes `Role` and `RoleBinding` limited to the:
-
-```text
-devops-case
-```
-
-namespace are defined for this group.
+A Kubernetes `Role` and `RoleBinding` limited to the `devops-case` namespace are defined for this group.
 
 GitHub Actions is not granted `cluster-admin` privileges.
 
@@ -860,6 +848,7 @@ Main improvements include:
 - Amazon ECR image management
 - GitHub OIDC authentication
 - Namespace-scoped Kubernetes RBAC
+- Kustomize environment management
 - Container image, dependency, and secret scanning with Trivy
 
 ## Rollback
@@ -904,7 +893,7 @@ Removing application workloads from EKS does not automatically delete the EKS cl
 
 The AWS EKS case environment runs on a single `t3.small` worker node. Due to Free Tier resource constraints, system components and application workloads share the same node.
 
-Because of these resource constraints, the Metrics Server is configured with a single replica. This configuration is intended for the case/test environment; a production environment would typically use higher capacity, multiple worker nodes, and an appropriate high-availability configuration.
+Because of these resource constraints, application workload replicas are kept at `1` across environments and resource requests are intentionally kept low. A production environment would typically use higher capacity, multiple worker nodes, and an appropriate high-availability configuration.
 
 ## Documentation and Evidence
 
@@ -935,5 +924,3 @@ Screenshots:
 Main case document:
 
 `DevOps_Technical_Case_EN.docx`
-
-

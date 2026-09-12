@@ -90,9 +90,11 @@ Show that processing the same repository again did not create a duplicate and in
 - **ECR push and EKS deployment stages screenshot:** `docs/screenshots/25-build-ecr-eks-deployment-steps.png`
 - **Explanation:** The CI/CD pipeline has been successfully executed on GitHub Actions. During the CI stage, the frontend build, backend validation, Python ETL validation, and Docker image build processes are performed. In addition, the frontend, backend, and Python ETL container images created during the CI stage are scanned for security vulnerabilities using Trivy. Trivy checks OS packages and application dependencies for known vulnerabilities and scans the images for accidentally embedded secret information. Scan results are reported in the GitHub Actions logs. In the current case environment, vulnerability findings are reported, but deployment is not automatically blocked because `exit-code: 0` is used.
 
-  After a push to the `main` branch, the `deploy-eks` job runs. The workflow assumes an AWS IAM Role using GitHub OIDC, pushes Docker images tagged with the commit SHA to Amazon ECR, connects to the EKS cluster using kubeconfig, updates Kubernetes Secrets, and applies the Service, Deployment, and CronJob resources under `k8s/eks/`.
+  A `deploy-eks` job runs after a push to the `main` branch. The workflow assumes the AWS IAM Role through GitHub OIDC, pushes the Docker images to Amazon ECR using the commit SHA as the image tag, connects to the EKS cluster using kubeconfig, and updates the Kubernetes Secrets.
 
-  After deployment, backend and frontend rollout status is checked, Gateway and HTTPRoute resources are verified, and backend healthcheck and frontend access are automatically tested through the AWS Load Balancer.
+  During the deployment stage, the `k8s/overlays/prod` Kustomize overlay is first validated using `kubectl apply --dry-run=server -k k8s/overlays/prod` and then applied to the EKS environment using `kubectl apply -k k8s/overlays/prod`. The images are subsequently updated with the corresponding commit SHA tags, and the rollout status of the backend, frontend, and ETL workloads is verified.
+
+  After deployment, the Gateway and HTTPRoute resources are verified, and the backend health check and frontend accessibility are automatically tested through the AWS Load Balancer.
 
   If a build or validation step in the CI stage fails, the `deploy-eks` job is not executed. This ensures that cloud deployment takes place only after a successful CI result.
 
@@ -191,49 +193,63 @@ Add evidence for any implemented logging, monitoring, alerting, Helm, Terraform,
 
 The evidence for the implemented logging, monitoring, alerting, security controls, and other advanced criteria is provided below.
 
-### 7.1 Advanced Criteria #3 - High Availability and Scalability: Rolling Update and Capacity Approach
+### 7.1 Upper Criteria #2 - Packaging and Environment Management: Kustomize
+
+- **Backend environment evidence:** `docs/screenshots/39-kustomize-backend-dev-test-prod.png`
+- **Frontend environment evidence:** `docs/screenshots/40-kustomize-frontend-dev-test-prod.png`
+- **Explanation:** Kubernetes resources are managed using Kustomize with a base and environment overlay structure. Shared resources are kept under `k8s/eks/`, while environment-specific differences are defined under `k8s/overlays/dev`, `k8s/overlays/test`, and `k8s/overlays/prod`.
+
+  CPU request values for both the backend and frontend are configured as `50m / 75m / 100m` for dev/test/prod respectively. Memory requests are kept at `32Mi` across all environments to avoid scheduling issues on the single `t3.small` worker node. The deployment replica count is set to `1` in all environments due to the current Free Tier / single-node capacity constraints.
+
+  The ETL CronJob configuration is managed through the shared base because no meaningful environment-specific differences are required. Secret values are not stored as plaintext in the Kustomize files and are provided through Kubernetes Secrets instead.
+
+  The production environment is deployed to AWS EKS using the `k8s/overlays/prod` Kustomize overlay. The Kustomize output is validated with a server-side dry run before deployment using `kubectl apply --dry-run=server -k k8s/overlays/prod`, followed by `kubectl apply -k k8s/overlays/prod`.
+
+  The `GatewayClass` is not included in the Kustomize base because it is a cluster-scoped resource and the GitHub Actions role uses namespace-scoped RBAC permissions. The existing GatewayClass in the EKS cluster is therefore reused, avoiding unnecessary cluster-wide permissions for the deployment workflow.
+
+### 7.2 Advanced Criteria #3 - High Availability and Scaling: Rolling Update and Capacity Approach
 
 - **Health check and resource configuration screenshots:**
 
-  - `docs/screenshots/39-eks-healthchecks-resources-backend.png`
-  - `docs/screenshots/40-eks-healthchecks-resources-frontend.png`
-  - `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
+  - `docs/screenshots/41-eks-healthchecks-resources-backend.png`
+  - `docs/screenshots/42-eks-healthchecks-resources-frontend.png`
+  - `docs/screenshots/43-eks-cpu-memory-limits-etl.png`
 
-- **Rolling update screenshot:** `docs/screenshots/42-eks-rolling-update.png`
-- **Explanation:** CPU and memory resource requests/limits are defined for the Kubernetes workloads. The backend Deployment uses a controlled `RollingUpdate` strategy with `maxSurge: 1` and `maxUnavailable: 0`. During deployment, the new Pod is created first, and the old Pod is not terminated until the new Pod has been confirmed ready by the readiness probe. This results in a version transition of `v1 → v1 + v2 → v2`. This behavior was verified during an actual rollout in the EKS environment and is evidenced by `docs/screenshots/42-eks-rolling-update.png`.
+- **Rolling update screenshot:** `docs/screenshots/44-eks-rolling-update.png`
+- **Explanation:** CPU and memory resource requests/limits are defined for the Kubernetes workloads. The backend Deployment uses a controlled `RollingUpdate` strategy with `maxSurge: 1` and `maxUnavailable: 0`. During deployment, the new Pod is created first, and the old Pod is not terminated until the new Pod has been confirmed ready by the readiness probe. This results in a version transition of `v1 → v1 + v2 → v2`. This behavior was verified during an actual rollout in the EKS environment and is evidenced by `docs/screenshots/44-eks-rolling-update.png`.
 
-### 7.2 Advanced Criteria #4 - Advanced Observability: Verified Alert Scenarios
+### 7.3 Advanced Criteria #4 - Advanced Observability: Verified Alert Scenarios
 
-- **Alert check and test screenshot:** `docs/screenshots/43-alerts-check.png`
+- **Alert check and test screenshot:** `docs/screenshots/45-alerts-check.png`
 - **Alert definition:** `scripts/check-alerts.ps1`
 - **Explanation:** The `check-alerts.ps1` script provides executable alert checks for two critical events. `ALERT-001` checks whether the ETL CronJob has failed or whether no successful run has occurred within the expected time window. `ALERT-002` checks whether the frontend or backend health endpoints are inaccessible. In test mode, both alerts were intentionally triggered and the script terminated with exit code 1. During the normal check with the system in a healthy state, no critical alert was generated and the script completed successfully.
 
-### 7.3 Advanced Criteria #5 - Advanced Security: Image / Dependency / Secret Scanning
+### 7.4 Advanced Criteria #5 - Advanced Security: Image / Dependency / Secret Scanning
 
-- **Trivy container security scan screenshot:** `docs/screenshots/44-trivy-security-scan.png`
+- **Trivy container security scan screenshot:** `docs/screenshots/46-trivy-security-scan.png`
 - **Explanation:** The frontend, backend, and Python ETL container images are scanned using Trivy as part of the GitHub Actions CI pipeline. The scan checks OS packages, application dependencies, and potentially embedded secrets within the images. Scan results are reported in the GitHub Actions logs, and under the current case configuration, vulnerability findings do not automatically block deployment.
 
-### 7.4 ETL Logging
+### 7.5 ETL Logging
 
 - **ETL log screenshot:** `docs/screenshots/21-etl-update-without-duplicate.png`
 - **Explanation:** The logs of the ETL CronJob running on Kubernetes show the retrieval of the GitHub repository, the MongoDB connection, the update of the existing repository using `github_id`, the document count check, and the successful completion of the ETL process.
 
-### 7.5 ETL Scheduling
+### 7.6 ETL Scheduling
 
-- **EKS CronJob schedule screenshot:** `docs/screenshots/45-eks-cronjob-schedule.png`
+- **EKS CronJob schedule screenshot:** `docs/screenshots/47-eks-cronjob-schedule.png`
 - **Explanation:** The `etl` CronJob running on EKS is shown to use the `0 * * * *` schedule for hourly execution and the `Europe/Istanbul` timezone.
 
 ## 8. Additional Evidence
 
 ### 8.1 Kubernetes Security Hardening
 
-- **Backend non-root evidence:** `docs/screenshots/46-backend-non-root-kubernetes.png`
-- **Frontend non-root evidence:** `docs/screenshots/47-frontend-non-root-kubernetes.png`
-- **ETL non-root evidence:** `docs/screenshots/48-etl-non-root-kubernetes.png`
+- **Backend non-root evidence:** `docs/screenshots/48-backend-non-root-kubernetes.png`
+- **Frontend non-root evidence:** `docs/screenshots/49-frontend-non-root-kubernetes.png`
+- **ETL non-root evidence:** `docs/screenshots/50-etl-non-root-kubernetes.png`
 - **Explanation:** The Kubernetes workloads were verified not to run as the root user. The backend runs as `node` (UID 1000), the frontend as `nginx` (UID 101), and the ETL as `appuser` (UID 10001). In addition, `allowPrivilegeEscalation` is disabled and all Linux capabilities are dropped.
 
 ### 8.2 AWS / EKS deployment configuration
 
-- **EKS cluster and node status:** `docs/screenshots/49-eks-cluster-config.png`
-- **EKS managed node group configuration:** `docs/screenshots/50-eks-node-group-config.png`
-- **Explanation:** The `devops-case-eks` EKS cluster is shown to be running in the `eu-central-1` region with a `Ready` worker node. The running node uses Kubernetes `v1.36.3` and Amazon Linux 2023. The EKS managed node group is configured with the name `devops-workers` and uses the `t3.small` instance type with 1 desired node. The cluster and node group configuration is defined in the repository's `eks-cluster.yaml` file.
+- **EKS cluster and node status:** `docs/screenshots/51-eks-cluster-config.png`
+- **EKS managed node group configuration:** `docs/screenshots/52-eks-node-group-config.png`
+- **Explanation:** The `devops-case-eks` EKS cluster is shown to be running in the `eu-central-1` region with a `Ready` worker node. The running node uses Kubernetes `v1.36.3` and Amazon Linux 2023. The EKS managed node group is configured with the name `devops-workers` and uses the `t3.small` instance type with 1 desired node. The cluster and node group configuration is defined in the repository's `eks-cluster.yaml` file. Kubernetes workload configuration is managed through Kustomize overlays for each environment, with the production deployment performed using `k8s/overlays/prod`.

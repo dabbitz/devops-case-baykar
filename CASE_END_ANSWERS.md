@@ -10,7 +10,7 @@ Answers should be concise, specific, and detailed enough to explain your technic
 
 - **Full name:** Tunahan Değirmencioğlu
 - **Repository URL:** `https://github.com/dabbitz/devops-case-baykar.git`
-- **Completion date:** 12.09.2026
+- **Completion date:** 13.09.2026
 - **Target environment used:** AWS EKS (`devops-case-eks`, `eu-central-1`)
 
 ---
@@ -30,7 +30,7 @@ The diagram may be created with Mermaid, Draw.io, Excalidraw, or a similar tool.
 
 The primary deployment runs on AWS EKS. The frontend and backend run as `Deployment + ClusterIP Service`, while the Python ETL runs as an hourly `CronJob`.
 
-```text id="1w0s7k"
+```text
 User / Browser
       ↓
 AWS Load Balancer
@@ -43,10 +43,10 @@ HTTPRoute
 Frontend Backend
 Service  Service
    ↓       ↓
-React    Node.js
-+ NGINX  + Express
-             ↓
-        MongoDB Atlas
+React   Node.js
++ NGINX + Express
+           ↓
+      MongoDB Atlas
 ```
 
 The frontend NGINX forwards `/api/` requests to `backend-service:5050`. The backend performs record CRUD operations in the `sample_training` database on MongoDB Atlas.
@@ -81,13 +81,13 @@ Which issues did you intentionally leave unresolved or out of scope? Explain the
 
 **Answer:**
 
-The core case requirements have been completed, while some production-level features were left out of scope.
+The core case requirements have been completed, while some advanced production-level features were left out of scope.
 
-For example, full IaC with Terraform/OpenTofu, Prometheus/Grafana, HPA/PDB, GitOps, canary/blue-green deployment, automated off-site backup retention, and distributed tracing were not implemented. **However**, a controlled `RollingUpdate` strategy and capacity-appropriate resource management have been implemented for the backend and **verified** in the actual EKS environment.
+Full IaC with Terraform/OpenTofu, Prometheus/Grafana-based advanced monitoring, HPA/PDB and multi-node high availability, GitOps, canary/blue-green deployment, automated off-site backup/retention, and distributed tracing were not implemented.
 
-In addition, the solution was extended with AWS EKS, Amazon ECR, GitHub OIDC, IAM, EKS RBAC, a Helm-based Envoy Gateway, non-root container hardening, verifiable alert checks, and Trivy-based image/dependency/secret scanning.
+However, a controlled `RollingUpdate`, CPU/memory resource management, Kustomize-based environment management, verifiable alert checks, and Trivy image/dependency/secret scanning were implemented and verified in the actual EKS environment.
 
-These omitted areas can be added as separate scaling, observability, and disaster recovery layers in a production environment when required.
+The omitted areas can be added separately according to production scaling, observability, release management, and disaster recovery requirements.
 
 ---
 
@@ -101,7 +101,7 @@ AWS EKS was selected because the application is container-based and the frontend
 
 This allowed Amazon ECR, AWS IAM, GitHub OIDC, EKS RBAC, Envoy Gateway, and the AWS Load Balancer to be used together.
 
-In a production environment, I would additionally use Terraform/OpenTofu, HPA and node autoscaling, PDB/multi-node distribution, Prometheus/Grafana, centralized secret management, automated off-site backups, HTTPS/domain management, and controlled release strategies.
+In a production environment, I would additionally use Terraform/OpenTofu for full IaC, HPA and node autoscaling, PDB and multi-node distribution, Prometheus/Grafana, centralized secret management, automated off-site backups, HTTPS/domain management, and controlled release strategies.
 
 ---
 
@@ -115,11 +115,11 @@ MongoDB Atlas was used for the normal deployment. This separates database persis
 
 Alternatives considered:
 
-| Approach          | Advantage                          | Disadvantage                                                |
-| ----------------- | ---------------------------------- | ----------------------------------------------------------- |
-| MongoDB Atlas     | Managed operations and persistence | External network dependency                                 |
-| StatefulSet + PVC | Kubernetes-native control          | Storage/backup/replication remain the user's responsibility |
-| Temporary MongoDB | Simple for CI/testing              | Not suitable for production data                            |
+| Approach          | Advantage                          | Disadvantage                                                                 |
+| ----------------- | ---------------------------------- | ---------------------------------------------------------------------------- |
+| MongoDB Atlas     | Managed operations and persistence | External network dependency                                                  |
+| StatefulSet + PVC | Kubernetes-native control          | Storage, backup, and replication management remain the user's responsibility |
+| Temporary MongoDB | Simple for CI/testing              | Not suitable for production data                                             |
 
 Therefore, Atlas was used for the application deployment, while an ephemeral MongoDB instance was used for CI validation. `k8s/ci-mongodb.yaml` is only intended for CI/testing.
 
@@ -135,21 +135,25 @@ If you did not use Helm, explain the method you selected and the reason for your
 
 **Answer:**
 
-The application's own Kubernetes resources are managed using plain manifest files. Since these resources do not require shared templating or multi-environment value management, direct manifest usage was preferred over creating a Helm chart.
+The application's own Kubernetes resources are managed using Kustomize with a shared base and environment-specific overlays.
 
-Comparison and rationale:
+Shared resources are kept under `k8s/eks/`, while environment-specific differences are defined under `k8s/overlays/dev`, `k8s/overlays/test`, and `k8s/overlays/prod`.
 
-- **Plain Manifests:** The easiest approach to read, understand, and troubleshoot. Since the project does not require multiple environments, the application's own resources are managed with plain YAML files.
-- **Helm / Kustomize:** Provide templating, parameter management, and versioning. However, using them for the application's own manifests would introduce unnecessary complexity at the current project scale, so they were used only where they provide clear value, such as managing third-party dependencies.
+Kustomize was selected because it allows the same Kubernetes resources to be managed across environments without introducing the additional templating complexity of a Helm chart. Backend and frontend CPU request values differ by environment, while memory requests are kept at `32Mi` because of the capacity of the single `t3.small` worker node.
 
-Envoy Gateway is a third-party component consisting of multiple related Kubernetes resources, so it was installed using its official Helm chart.
+Helm is used for third-party Kubernetes dependencies rather than the application's own workloads. Envoy Gateway is installed using its Helm chart.
 
 Therefore:
 
 ```text
-Application workloads  → Kubernetes manifests
-Envoy Gateway          → Helm
+Application Kubernetes resources → Kustomize
+
+Envoy Gateway                   → Helm
 ```
+
+Plain manifests are simpler to read and troubleshoot, but environment-specific configuration can lead to more duplication and manual changes. Helm provides stronger templating and package/version management, but a Helm chart was not necessary for the application's own resources at this project scale.
+
+Kustomize structure: `k8s/eks/`, `k8s/overlays/`
 
 ---
 
@@ -170,11 +174,21 @@ frontend-service → ClusterIP :80
 backend-service  → ClusterIP :5050
 ```
 
-Application components should not be directly exposed to the internet. Therefore, NodePort, which exposes node ports, and per-service LoadBalancer Services, which would create additional cloud load balancers outside the gateway path, were not used.
+The frontend and backend do not need to be directly exposed to the internet, so NodePort and separate LoadBalancer Services were not used. External traffic enters through a single path:
 
-Headless or ExternalName Services were also unnecessary because there is no requirement for custom DNS-based Pod discovery or external service proxying. External traffic is routed through AWS Load Balancer → Envoy Gateway → HTTPRoute → Services.
+```text
+AWS Load Balancer
+       ↓
+Envoy Gateway
+       ↓
+HTTPRoute
+       ↓
+Services
+```
 
-This prevents the backend from being directly exposed through NodePort or LoadBalancer.
+Headless or ExternalName Services were also unnecessary because the application does not require custom Pod DNS discovery or external service proxying.
+
+This prevents the backend from being directly exposed through NodePort or an additional LoadBalancer.
 
 Manifests: `k8s/` and `k8s/eks/`
 
@@ -197,16 +211,16 @@ Describe how you evaluated the following:
 
 **Answer:**
 
-- **Frontend → `Deployment`:** It is a stateless web workload and does not require persistent storage, a unique Pod identity, or ordered execution. It supports replicas and rolling updates. Liveness/readiness probes and CPU/memory resource requests/limits are defined.
-- **Backend → `Deployment`:** It is a stateless REST API; persistent data is stored in MongoDB. It does not require a dedicated Pod identity and can be scaled horizontally. Liveness/readiness probes are defined on `/healthcheck/`, along with CPU/memory resource requests/limits. A controlled `RollingUpdate` strategy is configured with `maxSurge: 1` and `maxUnavailable: 0`. The old Pod is terminated only after the new Pod is ready according to the readiness probe, resulting in a `v1 → v1 + v2 → v2` transition.
-- **MongoDB:** MongoDB Atlas is used in the normal deployment, so a Kubernetes `StatefulSet` is not required. The MongoDB instance used in CI is only an ephemeral test workload.
-- **ETL → `CronJob`:** It is a periodic workload that runs hourly. Each execution creates a separate `Job`; overlapping executions are prevented with `Forbid`, failed executions are retried, and CPU/memory resource requests/limits are defined.
+- **Frontend → `Deployment`:** It is a stateless web workload and does not require persistent storage, a unique Pod identity, or ordered execution. It supports rolling updates and replica management. Liveness/readiness probes and CPU/memory resource requests/limits are defined.
+- **Backend → `Deployment`:** It is a stateless REST API; persistent data is stored in MongoDB Atlas. It does not require a dedicated Pod identity or ordered execution and can be scaled horizontally. Liveness/readiness probes are defined on `/healthcheck/`, together with CPU/memory resource requests/limits. A controlled `RollingUpdate` strategy uses `maxSurge: 1` and `maxUnavailable: 0`.
+- **MongoDB → MongoDB Atlas:** MongoDB Atlas is used in the normal application deployment, so a Kubernetes `StatefulSet` is not required. The MongoDB instance used in CI is only an ephemeral test workload.
+- **ETL → `CronJob`:** It is a periodic workload that runs hourly. Each execution creates a separate `Job`. Overlapping executions are prevented with `Forbid`, and failed executions are retried.
 
 ```text
 0 * * * *
 ```
 
-These workload decisions were considered with stateless/stateful operation, persistence requirements, Pod identity and ordering needs, execution frequency, restart behavior, resource usage, and scalability.
+These workload decisions were based on stateless/stateful behavior, persistence requirements, Pod identity and ordering needs, execution frequency, restart behavior, resource usage, and scalability.
 
 ---
 
@@ -238,11 +252,9 @@ What measures did you take, or would you take, to reduce user impact and allow t
 
 The backend establishes the MongoDB connection during startup and fails fast if the connection cannot be established.
 
-The existing `/healthcheck/` endpoint verifies that the HTTP process is responsive and is used as both the readiness and liveness probe in the backend Deployment; it does not directly check the MongoDB dependency.
+The existing `/healthcheck/` endpoint verifies that the HTTP process is responsive and is used as the readiness/liveness probe in the backend Deployment; it does not directly check the MongoDB dependency.
 
 In production, I would separate the readiness probe so that it checks required dependencies including MongoDB. This allows a Pod without database access to be removed from serving new user traffic.
-
-The backend healthcheck is also verified after CI/CD deployment.
 
 ---
 
@@ -254,7 +266,7 @@ Which method would you use to roll it back, and how would you verify that the pr
 
 **Answer:**
 
-First, I would inspect the Pod and event status using:
+First, I would inspect Pod, event, and log status:
 
 ```powershell
 kubectl get pods -n devops-case
@@ -263,23 +275,25 @@ kubectl logs <pod> -n devops-case
 kubectl get events -n devops-case
 ```
 
-Then I would inspect the Deployment history:
+Then I would inspect Deployment history:
 
 ```powershell
 kubectl rollout history deployment/backend -n devops-case
 kubectl rollout history deployment/frontend -n devops-case
 ```
 
-and roll back to the previous version:
+and roll back to the previous version when necessary:
 
 ```powershell
 kubectl rollout undo deployment/backend -n devops-case
 kubectl rollout undo deployment/frontend -n devops-case
 ```
 
-After the rollback, rollout status, backend healthcheck, and frontend access are verified again. During a `RollingUpdate`, the deployment transition is controlled by ensuring that the old Pod is not terminated until the new Pod has been confirmed ready by its readiness probe.
+After the rollback, rollout status, backend healthcheck, and frontend access are verified again.
 
-A failed healthcheck after CI/CD deployment causes the job to fail.
+The backend `RollingUpdate` configuration ensures that the old Pod is not terminated until the new Pod has passed its readiness probe.
+
+A failed rollout or healthcheck after CI/CD deployment causes the workflow to fail.
 
 ---
 
@@ -302,9 +316,9 @@ Important metrics include:
 - MongoDB connection usage
 - query latency
 
-Since the frontend and backend are stateless, their replica counts can be increased. If needed, an HPA (Horizontal Pod Autoscaler) can be used for Pod-level scaling. When node capacity becomes insufficient, node autoscaling mechanisms such as Cluster Autoscaler or Karpenter can be used.
+Since the frontend and backend are stateless, their replica counts can be increased. If needed, HPA can be used for Pod-level scaling. When node capacity becomes insufficient, node autoscaling mechanisms such as Cluster Autoscaler or Karpenter can be considered.
 
-MongoDB connections and database load must also be considered because increasing replicas increases the potential database connection and query load.
+MongoDB connection usage, query latency, and database resource consumption must also be monitored because increasing application replicas can increase database connection and query load.
 
 ---
 
@@ -327,7 +341,7 @@ Two critical alert scenarios were implemented:
 
 These checks are implemented and tested through `scripts/check-alerts.ps1`.
 
-During an incident, I would first inspect the alert result, Kubernetes Pod/Job status, relevant logs, rollout status, and healthcheck results.
+The current case environment does not include a centralized Prometheus/Grafana dashboard. During an incident, I would first inspect the alert result, Kubernetes Pod/Job status, relevant logs, rollout status, and healthcheck results.
 
 ---
 
@@ -342,7 +356,7 @@ Explain the controls you implemented, or would implement in production, to reduc
 Three important risks and the corresponding controls are:
 
 1. **Secret exposure:** Secrets are managed through GitHub Actions Secrets / Kubernetes Secrets and are not embedded in source code or images.
-2. **Container and image security:** `runAsNonRoot`, `allowPrivilegeEscalation: false`, and `capabilities.drop: ALL` are used. In addition, Docker images are scanned during the CI stage using Trivy for OS package vulnerabilities, application dependencies, and embedded secrets. Under the current case configuration, scan findings are reported, but deployment is not automatically blocked.
+2. **Container and image security:** `runAsNonRoot`, `allowPrivilegeEscalation: false`, and `capabilities.drop: ALL` are used. Docker images are also scanned during CI with Trivy for OS package vulnerabilities, application dependencies, and embedded secrets. Under the current case configuration, scan findings are reported but do not automatically block deployment.
 3. **Unnecessary external exposure:** Frontend and backend are kept as `ClusterIP` Services and external access is provided through Envoy Gateway.
 
 GitHub Actions also uses OIDC for AWS access, IAM least privilege, and namespace-scoped Kubernetes RBAC.
@@ -363,7 +377,7 @@ The unique record key is:
 github_id
 ```
 
-For example, the repository ID for this project is:
+For this project:
 
 ```text
 github_id = 1361100555
@@ -393,24 +407,23 @@ Provide your runbook in `docs/backup-restore.md` and reference the evidence from
 
 **Answer:**
 
-MongoDB Atlas data was backed up at the `sample_training` database level using `mongodump` and stored under `backups/sample-training-backup/`.
+MongoDB Atlas data was backed up at the `sample_training` database level using `mongodump` and stored under:
+
+```text
+backups/sample-training-backup/
+```
 
 Test scope:
 
 ```text
-records                 → 1 document
-github_repositories     → 1 document
-Total                   → 2 documents
+records              → 1 document
+github_repositories  → 1 document
+Total                → 2 documents
 ```
 
-The backup process is not automatically scheduled in the current case solution; the actual E2E test was performed manually. In addition, the `scripts/backup-restore.ps1` PowerShell script has been added to the repository to enable repeatable backup and restore operations. The `-Action Backup` and `-Action Restore -DropExisting` scenarios have been successfully tested. No automated backup frequency or retention policy has been implemented.
+The backup process is not automatically scheduled in the current case solution. The actual E2E test was performed manually. In addition, `scripts/backup-restore.ps1` was added to the repository to make backup and restore operations repeatable. The `-Action Backup` and `-Action Restore -DropExisting` scenarios were successfully tested.
 
-Restore validation included:
-
-- deleting the database and verifying data loss,
-- checking the `mongorestore` result and error count,
-- verifying collection and document counts,
-- confirming that the data could be read again through the application.
+The restore test deleted the database, verified data loss through both the application and MongoDB, restored the backup, and then verified collection/document counts and application access again.
 
 Restore result:
 
@@ -419,11 +432,15 @@ Restore result:
 0 documents failed to restore.
 ```
 
-In production, I would use automated and encrypted backups, defined retention, off-site/object storage, regular restore tests, and actual RPO/RTO monitoring.
+The measured `mongorestore` execution time was approximately **1.3 seconds**. This represents only the restore command execution time and should not be interpreted as an end-to-end production RTO.
+
+No formal production RPO/RTO SLA or automated retention mechanism was defined for the case environment.
+
+In production, I would use automated and encrypted backups, defined retention, off-site/object storage, backup integrity verification, regular restore tests, and explicit RPO/RTO targets.
 
 Runbook: `docs/backup-restore.md`
 Script: `scripts/backup-restore.ps1`
-Evidence: the backup/restore section of `SUBMISSION_EVIDENCE.md`:
+Evidence: the `Backup and Restore` section of `SUBMISSION_EVIDENCE.md`.
 
 - **Record creation 1:** `docs/screenshots/29-backup-record-created-01.png`
 - **Record creation 2:** `docs/screenshots/30-backup-record-created-02.png`
@@ -446,10 +463,10 @@ Use this section for any additional decisions, limitations, or future improvemen
 
 In the final stage of the work, the application was moved from local Kubernetes validation to a real AWS EKS environment and automated cloud deployment was established through GitHub Actions.
 
-The CI/CD flow uses GitHub OIDC with an AWS IAM Role, pushes images to Amazon ECR using commit SHA tags, and deploys the same versions to EKS.
+The CI/CD flow uses GitHub OIDC with an AWS IAM Role, pushes images to Amazon ECR using commit SHA tags, and deploys the same versions to EKS through the `k8s/overlays/prod` Kustomize overlay.
 
-Liveness/readiness probes, CPU/memory resource requests/limits, and a controlled rolling update configuration suitable for the single-node EKS environment have also been implemented and verified on the actual EKS environment.
+Before deployment, the Kustomize output is validated with a server-side dry run, followed by application of the production overlay. Deployment images are then updated using commit SHA tags, and rollout and healthcheck verification are performed.
 
-The core requirements specified in the case have been implemented and verified. In addition, the solution implements controlled rolling updates and capacity-aware workload configuration in the area of high availability and scalability, verified alert scenarios in advanced observability, and Trivy-based image/dependency/secret scanning in advanced security.
+The core case requirements have been implemented and verified. In addition, the solution implements Kustomize-based environment management, controlled RollingUpdate and capacity-aware workload configuration, verified alert scenarios, and Trivy-based image/dependency/secret scanning.
 
-The current solution has been completed to satisfy the case requirements. Further production improvements could include fully managed IaC, advanced monitoring and autoscaling, centralized secret management, and more advanced disaster recovery.
+The current solution has been completed to satisfy the case requirements. Further production improvements could include full IaC, advanced monitoring and autoscaling, centralized secret management, multi-node high availability, controlled release strategies, and more advanced disaster recovery.

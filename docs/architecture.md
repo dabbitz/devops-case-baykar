@@ -262,7 +262,8 @@ AWS EKS ortamında kullanılan temel kaynaklar:
 | Frontend Service    | Frontend'e cluster içi erişim sağlamak                    |
 | ETL CronJob         | Saatlik Python ETL çalıştırmak                            |
 | Secret              | Credential ve bağlantı bilgilerini workload'lara aktarmak |
-| GatewayClass        | Envoy Gateway controller'ını kullanmak                    |
+| Gateway             | Dış HTTP erişim noktası sağlamak                          |
+| HTTPRoute           | HTTP trafiğini Service'lere yönlendirmek                  |
 | Gateway             | Dış HTTP erişim noktası sağlamak                          |
 | HTTPRoute           | HTTP trafiğini Service'lere yönlendirmek                  |
 
@@ -275,6 +276,18 @@ MongoDB normal deployment'ta Kubernetes workload'u olarak çalıştırılmamakta
 Frontend ve backend Deployment'larında liveness/readiness probe'ları tanımlanmıştır. Backend `/healthcheck/`, frontend `/` endpoint'i üzerinden kontrol edilmektedir. Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits bulunmaktadır.
 
 Backend Deployment'ı `maxSurge: 1` ve `maxUnavailable: 0` ile kontrollü `RollingUpdate` stratejisi kullanmaktadır. Yeni Pod readiness probe ile hazır olduktan sonra eski Pod sonlandırılmakta ve geçiş `v1 → v1 + v2 → v2` şeklinde gerçekleşmektedir.
+
+AWS EKS uygulama kaynakları Kustomize ile yönetilmektedir:
+
+```text
+k8s/eks/              → ortak base
+        ↓
+overlays/dev/
+overlays/test/
+overlays/prod/
+        ↓
+Environment-specific configuration
+```
 
 ---
 
@@ -430,6 +443,8 @@ AWS IAM Role
    ↓
 Amazon ECR
    ↓
+Kustomize prod overlay
+   ↓
 AWS EKS
    ↓
 Kubernetes rollout
@@ -449,7 +464,10 @@ Deployment job'ı:
 - Image'ları Amazon ECR'a push eder.
 - EKS kubeconfig'i oluşturur.
 - Kubernetes Secret kaynaklarını günceller.
-- EKS manifestlerini uygular.
+- Production, Kustomize overlay'ini (`k8s/overlays/prod/`) server-side dry-run ile doğrular.
+- Production overlay'ini EKS'e uygular.
+- Deployment image'larını commit SHA ile günceller.
+- Rollout ve dış erişim kontrollerini gerçekleştirir.
 - Gateway ve HTTPRoute kaynaklarını uygular.
 - Rollout ve dış erişim kontrollerini gerçekleştirir.
 
@@ -477,13 +495,22 @@ Node Type:
 t3.small
 ```
 
-EKS için cloud-specific manifestler:
-
 ```text
+EKS için ortak Kubernetes kaynakları:
 k8s/eks/
 ```
 
 altında bulunmaktadır.
+
+Environment-specific ayarlar ise Kustomize overlay'leri ile yönetilmektedir:
+
+```text
+k8s/overlays/dev/
+k8s/overlays/test/
+k8s/overlays/prod/
+```
+
+AWS production deployment `k8s/overlays/prod/` üzerinden gerçekleştirilmektedir.
 
 Amazon ECR üzerinde üç ayrı image repository kullanılmaktadır:
 

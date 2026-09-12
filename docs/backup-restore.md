@@ -13,15 +13,15 @@ Bu runbook, MongoDB Atlas üzerinde kullanılan `sample_training` database'inin 
 | Yedeğin saklandığı konum / Backup storage location                     | Case çalışma ortamında proje kökü altındaki `backups/sample-training-backup/` klasörü.                                                                                                                                                                                                                                                               |
 | Yedek formatı / Backup format                       | MongoDB BSON dump formatı ve collection metadata dosyaları kullanılmıştır. Backup içerisinde `records.bson`, `github_repositories.bson` ve ilgili metadata dosyaları bulunmaktadır.                                                                                                                                                                  |
 | Sıklık / Frequency                                                     | Bu case kapsamında manuel olarak alınmıştır. Repository'de tekrarlanabilir backup/restore script'i bulunmaktadır, ancak otomatik backup schedule ve retention mekanizması uygulanmamıştır. Production ortamı için zamanlanmış günlük veya daha sık backup önerilmektedir.                                                                                                                                                                                                                          |
-| Retention süresi / Retention period                                    | Case çalışma ortamında belirlenmiş otomatik retention mekanizması bulunmamaktadır. Production ortamında en az 7 günlük veya iş gereksinimine göre daha uzun bir retention politikası uygulanmalıdır.                                                                                                                                                 |
+| Retention süresi / Retention period                                    | Case ortamında otomatik retention mekanizması bulunmamaktadır. Production retention süresi iş ve compliance gereksinimlerine göre belirlenmelidir.                                                                                                                                                 |
 | Erişim ve güvenlik / Access and security           | MongoDB bağlantı bilgileri backup komutuna repository içerisinden sabit olarak yazılmamış, yerel `.env` değişkeninden okunmuştur. Backup dosyaları repository'ye eklenmemekte ve `backups/` `.gitignore` tarafından hariç tutulmaktadır. Production ortamında backup dosyaları erişim kontrollü ve şifreli bir harici storage üzerinde tutulmalıdır. |
 
 ## 2. Hedefler / Targets
 
 |     | Hedef / Target                                                                                                               | Ölçülen / Measured                                                                                              |
 | --- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| RPO | Production hedefi: en fazla 24 saat veri kaybı. Daha kritik bir sistemde daha sık backup ile daha düşük RPO hedeflenmelidir. | Case kapsamında manuel backup alındığı için otomatik olarak garanti edilen bir RPO bulunmamaktadır.             |
-| RTO | Production hedefi: uygulamanın kabul edilebilir süre içerisinde tekrar çalışır hale getirilmesi.                             | Gerçek restore komutu yaklaşık 1.3 saniye içinde tamamlanmıştır. Uçtan uca RTO'nun tamamı ayrıca ölçülmemiştir. |
+| RPO | Production hedefi: Case ortamı için formal bir RPO tanımlanmamıştır. Mevcut manuel backup yaklaşımı belirli bir RPO'yu garanti etmez. | Otomatik backup olmadığı için ölçülmüş/garanti edilen bir RPO yoktur.             |
+| RTO | Production hedefi: Case ortamı için formal bir production RTO SLA'sı tanımlanmamıştır.                             | `mongorestore` komutunun ölçülen çalışma süresi yaklaşık 1.3 saniyedir. Bu değer uçtan uca production RTO değildir. |
 
 ## 3. Yedek alma adımları / Backup procedure
 
@@ -114,10 +114,10 @@ Backup'ın eksik veya bozuk olmadığını doğrulamak için:
 1. `mongodump` çıktısında backup'a alınan collection ve document sayıları kontrol edilmiştir.
 2. Backup klasöründeki BSON ve metadata dosyalarının oluşturulduğu doğrulanmıştır.
 3. `sample_training` database'i tamamen silindikten sonra uygulama ve MongoDB Atlas üzerinden verilerin kaybolduğu doğrulanmıştır.
-4. `mongorestore` sonrasında her iki collection'ın başarıyla restore edildiği ve `0 document(s) failed to restore` sonucu alındığı doğrulanmıştır.
-5. Restore sonrasında MongoDB Atlas ve web arayüzü üzerinden kayıtların tekrar erişilebilir olduğu doğrulanmıştır.
-6. Repository içerisinde bulunan `scripts/backup-restore.ps1` script'i ile backup işlemi başarıyla çalıştırılmıştır.
-7. `scripts/backup-restore.ps1 -Action Restore -DropExisting` komutu başarıyla test edilmiş ve mevcut collection'ların backup üzerinden yeniden oluşturulduğu doğrulanmıştır.
+4. Aynı backup kullanılarak `mongorestore` gerçekleştirilmiş ve her iki collection için `0 document(s) failed to restore` sonucu alınmıştır.
+5. Restore sonrasında collection/document count kontrol edilmiş ve beklenen 2 document'ın geri geldiği doğrulanmıştır.
+6. Restore edilen verinin web uygulaması ve MongoDB Atlas üzerinden tekrar göründüğü doğrulanmıştır.
+7. `scripts/backup-restore.ps1 -Action Backup` ve `scripts/backup-restore.ps1 -Action Restore -DropExisting` senaryoları başarıyla test edilmiştir.
 
 ## 6. Uçtan uca test sonucu / End-to-end test result
 
@@ -134,14 +134,13 @@ Senaryo 9 Eylül 2026 tarihinde gerçekleştirilmiştir.
 
 ## 7. Bilinen sınırlamalar / Known limitations
 
-Bu case kapsamında gerçek backup/restore E2E testi manuel olarak gerçekleştirilmiştir. Repository'de backup ve restore işlemlerini tekrarlanabilir şekilde çalıştırmak için `scripts/backup-restore.ps1` script'i bulunmaktadır; ancak otomatik zamanlama ve retention mekanizması uygulanmamıştır.
+Bu case kapsamında backup/restore E2E testi manuel olarak gerçekleştirilmiştir. `scripts/backup-restore.ps1` işlemleri tekrarlanabilir hale getirmektedir, ancak otomatik scheduling ve retention uygulanmamıştır.
 
 Production ortamında:
 
-- Backup işlemi zamanlanmış bir Job/CronJob veya managed backup mekanizması ile otomatikleştirilmelidir.
-- Backup'lar uygulama veya cluster ortamından bağımsız bir object storage veya başka bir dayanıklı storage üzerinde tutulmalıdır.
-- Backup retention politikası otomatik olarak uygulanmalıdır.
-- Backup dosyaları şifreli şekilde saklanmalı ve yalnızca gerekli yetkilere sahip servis veya kullanıcıların erişimine izin verilmelidir (GitHub'a backup dosyaları push edilmemiştir, dolayısı ile bu dokümanda bahsedilen dosya yolu, verilen proje klasöründe bulunmaz).
-- Düzenli backup integrity ve restore testleri gerçekleştirilmelidir.
-- Daha düşük RPO gereksinimi olan sistemlerde günlük backup yerine daha sık backup veya point-in-time recovery yaklaşımı değerlendirilmelidir.
-- Restore sürecinin tamamı periyodik olarak test edilerek gerçek RTO ölçülmelidir.
+- Backup'lar bağımsız ve dayanıklı bir object storage üzerinde tutulmalıdır.
+- Retention politikası otomatik uygulanmalıdır.
+- Backup'lar şifrelenmeli ve erişim yetkileri sınırlandırılmalıdır.
+- Düzenli backup integrity ve restore testleri yapılmalıdır.
+- Daha düşük RPO gereksinimlerinde daha sık backup veya point-in-time recovery değerlendirilmelidir.
+- Restore süreci periyodik olarak test edilerek gerçek uçtan uca RTO ölçülmelidir.
