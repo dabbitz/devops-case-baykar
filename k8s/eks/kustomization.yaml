@@ -7,6 +7,5 @@ resources:
   - frontend-deployment.yaml
   - frontend-service.yaml
   - etl-cronjob.yaml
-  - gatewayclass.yaml
   - gateway.yaml
   - http-route.yaml
