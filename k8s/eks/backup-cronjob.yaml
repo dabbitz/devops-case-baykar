@@ -1,0 +1,130 @@
+apiVersion: batch/v1
+kind: CronJob
+
+metadata:
+  name: mongodb-backup
+  namespace: devops-case
+
+spec:
+  schedule: "0 2 * * *"
+  timeZone: "Europe/Istanbul"
+
+  concurrencyPolicy: Forbid
+
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+
+      template:
+        spec:
+          serviceAccountName: s3-backup
+          restartPolicy: Never
+
+          securityContext:
+            fsGroup: 999
+
+          volumes:
+            - name: backup
+              emptyDir: {}
+
+          initContainers:
+            - name: mongodump
+              image: mongo:8.0
+
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 999
+                runAsGroup: 999
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+
+              env:
+                - name: MONGODB_URI
+                  valueFrom:
+                    secretKeyRef:
+                      name: etl-secret
+                      key: MONGODB_URI
+
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+
+                  TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+                  FILE="/backup/sample_training_${TIMESTAMP}.archive.gz"
+
+                  echo "Starting MongoDB backup..."
+
+                  mongodump \
+                    --uri="${MONGODB_URI}" \
+                    --db=sample_training \
+                    --archive="${FILE}" \
+                    --gzip
+
+                  test -s "${FILE}"
+
+                  echo "Backup created successfully."
+                  ls -lh "${FILE}"
+
+          containers:
+            - name: s3-upload
+              image: amazon/aws-cli:2.36.43
+
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+                runAsGroup: 1000
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+
+              env:
+                - name: AWS_REGION
+                  value: eu-central-1
+
+                - name: S3_BUCKET
+                  value: devops-case-baykar-backups-203309795174
+
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+
+                  FILE="$(find /backup -maxdepth 1 -type f -name '*.archive.gz' | head -n 1)"
+
+                  if [ -z "${FILE}" ]; then
+                    echo "ERROR: backup file not found"
+                    exit 1
+                  fi
+
+                  NAME="$(basename "${FILE}")"
+
+                  echo "Uploading ${NAME} to S3..."
+
+                  aws s3 cp \
+                    "${FILE}" \
+                    "s3://${S3_BUCKET}/sample_training/${NAME}"
+
+                  echo "Upload completed."
+
+                  aws s3api head-object \
+                    --bucket "${S3_BUCKET}" \
+                    --key "sample_training/${NAME}"
+
+                  echo "S3 backup verification completed successfully."
