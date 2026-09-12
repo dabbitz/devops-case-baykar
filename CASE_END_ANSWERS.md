@@ -10,7 +10,7 @@ Answers should be concise, specific, and detailed enough to explain your technic
 
 - **Full name:** Tunahan Değirmencioğlu
 - **Repository URL:** `https://github.com/dabbitz/devops-case-baykar.git`
-- **Completion date:** 11.09.2026
+- **Completion date:** 12.09.2026
 - **Target environment used:** AWS EKS (`devops-case-eks`, `eu-central-1`)
 
 ---
