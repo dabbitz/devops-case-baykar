@@ -23,7 +23,7 @@ patches:
         value: 75m
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
-        value: 48Mi
+        value: 32Mi
 
   - target:
       kind: Deployment
@@ -37,4 +37,4 @@ patches:
         value: 75m
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/memory
-        value: 96Mi
+        value: 64Mi
