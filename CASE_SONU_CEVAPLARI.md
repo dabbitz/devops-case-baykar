@@ -10,7 +10,7 @@ Cevaplarınızın kısa, somut ve teknik kararlarınızı açıklayacak düzeyde
 
 - **Ad Soyad:** Tunahan Değirmencioğlu
 - **Repository adresi:** `https://github.com/dabbitz/devops-case-baykar.git`
-- **Çalışmanın tamamlandığı tarih:** 11.09.2026
+- **Çalışmanın tamamlandığı tarih:** 12.09.2026
 - **Kullanılan hedef ortam:** AWS EKS (`devops-case-eks`, `eu-central-1`)
 
 ---
