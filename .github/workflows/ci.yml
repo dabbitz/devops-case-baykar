@@ -199,16 +199,10 @@ jobs:
             --dry-run=client \
             -o yaml | kubectl apply -f -
 
-      - name: Apply Kubernetes services
+      - name: Validate and apply production Kustomize overlay
         run: |
-          kubectl apply -f k8s/eks/backend-service.yaml
-          kubectl apply -f k8s/eks/frontend-service.yaml
-
-      - name: Apply Kubernetes workloads
-        run: |
-          kubectl apply -f k8s/eks/backend-deployment.yaml
-          kubectl apply -f k8s/eks/frontend-deployment.yaml
-          kubectl apply -f k8s/eks/etl-cronjob.yaml
+          kubectl apply --dry-run=server -k k8s/overlays/prod
+          kubectl apply -k k8s/overlays/prod
 
       - name: Update deployed image versions
         run: |
@@ -223,11 +217,6 @@ jobs:
           kubectl set image cronjob/etl \
             etl="$ECR_REGISTRY/devops-case-etl:$IMAGE_TAG" \
             -n devops-case
-
-      - name: Apply Gateway resources
-        run: |
-          kubectl apply -f k8s/eks/gateway.yaml
-          kubectl apply -f k8s/eks/http-route.yaml
 
       - name: Wait for deployments
         run: |
