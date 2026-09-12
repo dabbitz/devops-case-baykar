@@ -118,7 +118,7 @@ Node.js / Express
 
 `backend-service` `ClusterIP` tipindedir ve doğrudan internete açılmamıştır.
 
-Backend Deployment'ında `/healthcheck/` endpoint'i üzerinden liveness ve readiness probe'ları tanımlanmıştır. CPU ve memory resource requests/limits uygulanmıştır. Tek node'lu EKS ortamında kontrollü rolling update için `maxSurge: 0` ve `maxUnavailable: 1` kullanılmıştır.
+Backend Deployment'ında `/healthcheck/` endpoint'i üzerinden liveness ve readiness probe'ları tanımlanmıştır. CPU ve memory resource requests/limits uygulanmıştır.
 
 ---
 
@@ -274,7 +274,7 @@ MongoDB normal deployment'ta Kubernetes workload'u olarak çalıştırılmamakta
 
 Frontend ve backend Deployment'larında liveness/readiness probe'ları tanımlanmıştır. Backend `/healthcheck/`, frontend `/` endpoint'i üzerinden kontrol edilmektedir. Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits bulunmaktadır.
 
-Backend Deployment'ı tek node'lu EKS ortamına uygun olarak `maxSurge: 0` ve `maxUnavailable: 1` ile kontrollü rolling update kullanmaktadır.
+Backend Deployment'ı `maxSurge: 1` ve `maxUnavailable: 0` ile kontrollü `RollingUpdate` stratejisi kullanmaktadır. Yeni Pod readiness probe ile hazır olduktan sonra eski Pod sonlandırılmakta ve geçiş `v1 → v1 + v2 → v2` şeklinde gerçekleşmektedir.
 
 ---
 
@@ -392,8 +392,6 @@ Frontend HTTP check
 adımları ile deployment doğrulanmaktadır.
 
 Ayrıca ETL CronJob ve Job geçmişi Kubernetes üzerinden kontrol edilmektedir.
-
-Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits tanımlıdır. Backend Deployment'ı tek node'lu EKS ortamında kontrollü rolling update kullanmaktadır.
 
 ---
 

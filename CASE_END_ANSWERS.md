@@ -83,7 +83,7 @@ Which issues did you intentionally leave unresolved or out of scope? Explain the
 
 The core case requirements have been completed, while some production-level features were left out of scope.
 
-For example, full IaC with Terraform/OpenTofu, Prometheus/Grafana, HPA/PDB, GitOps, canary/blue-green deployment, automated off-site backup retention, and distributed tracing were not implemented.
+For example, full IaC with Terraform/OpenTofu, Prometheus/Grafana, HPA/PDB, GitOps, canary/blue-green deployment, automated off-site backup retention, and distributed tracing were not implemented. **However**, a controlled `RollingUpdate` strategy and capacity-appropriate resource management have been implemented for the backend and **verified** in the actual EKS environment.
 
 In addition, the solution was extended with AWS EKS, Amazon ECR, GitHub OIDC, IAM, EKS RBAC, a Helm-based Envoy Gateway, non-root container hardening, verifiable alert checks, and Trivy-based image/dependency/secret scanning.
 
@@ -198,7 +198,7 @@ Describe how you evaluated the following:
 **Answer:**
 
 - **Frontend → `Deployment`:** It is a stateless web workload and does not require persistent storage, a unique Pod identity, or ordered execution. It supports replicas and rolling updates. Liveness/readiness probes and CPU/memory resource requests/limits are defined.
-- **Backend → `Deployment`:** It is a stateless REST API; persistent data is stored in MongoDB. No unique Pod identity is required, and it can be horizontally scaled. Liveness/readiness probes using `/healthcheck/` and CPU/memory resource requests/limits are defined. `maxSurge: 0` and `maxUnavailable: 1` are used for controlled rolling updates in the single-node EKS environment.
+- **Backend → `Deployment`:** It is a stateless REST API; persistent data is stored in MongoDB. It does not require a dedicated Pod identity and can be scaled horizontally. Liveness/readiness probes are defined on `/healthcheck/`, along with CPU/memory resource requests/limits. A controlled `RollingUpdate` strategy is configured with `maxSurge: 1` and `maxUnavailable: 0`. The old Pod is terminated only after the new Pod is ready according to the readiness probe, resulting in a `v1 → v1 + v2 → v2` transition.
 - **MongoDB:** MongoDB Atlas is used in the normal deployment, so a Kubernetes `StatefulSet` is not required. The MongoDB instance used in CI is only an ephemeral test workload.
 - **ETL → `CronJob`:** It is a periodic workload that runs hourly. Each execution creates a separate `Job`; overlapping executions are prevented with `Forbid`, failed executions are retried, and CPU/memory resource requests/limits are defined.
 
@@ -277,7 +277,7 @@ kubectl rollout undo deployment/backend -n devops-case
 kubectl rollout undo deployment/frontend -n devops-case
 ```
 
-After the rollback, rollout status, backend healthcheck, and frontend access are verified again.
+After the rollback, rollout status, backend healthcheck, and frontend access are verified again. During a `RollingUpdate`, the deployment transition is controlled by ensuring that the old Pod is not terminated until the new Pod has been confirmed ready by its readiness probe.
 
 A failed healthcheck after CI/CD deployment causes the job to fail.
 

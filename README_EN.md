@@ -70,7 +70,7 @@ DevOps_Case_Final/
 
 ## Current AWS EKS Deployment
 
-The **current AWS EKS deployment used during this work** is directly accessible through the following addresses:
+The application was accessed through the AWS EKS deployment used during the project. The AWS Load Balancer hostnames shown in the addresses below are displayed as `[REDACTED]` in the public repository to avoid unnecessarily exposing cloud environment details.
 
 **Application:**
 
@@ -90,7 +90,9 @@ http://[REDACTED].eu-central-1.elb.amazonaws.com/records
 http://[REDACTED].eu-central-1.elb.amazonaws.com/api/healthcheck
 ```
 
-> **Important:** The addresses above belong to the AWS Load Balancer created for the current deployment during this work. They **must not be considered permanent production URLs**. In particular, if the EKS cluster, Envoy Gateway, or Load Balancer is recreated, AWS may assign a new hostname. In addition, the addresses may no longer be accessible after submission if the AWS resources used for this deployment are removed.
+> **Important:** The addresses used belong to the AWS Load Balancer created during this project. They should **not be considered permanent production URLs**. In particular, if the EKS cluster, Envoy Gateway, or Load Balancer is recreated, AWS may assign a new hostname. The addresses may also become inaccessible if the AWS resources used for the project are removed after submission.
+
+> **Actual EKS access address:** In the public repository, the Load Balancer hostname is shown as `[REDACTED]`. The actual access address used during the project is provided in a `.txt` file located in the project root of the submitted `.zip` file.
 
 ### Finding the Current EKS Access Address
 
@@ -511,7 +513,7 @@ The EKS deployment consists of:
 
 ```text
 Frontend → Deployment + ClusterIP Service + liveness/readiness probes
-Backend  → Deployment + ClusterIP Service + liveness/readiness probes
+Backend  → Deployment + ClusterIP Service + liveness/readiness probes + controlled RollingUpdate
 ETL      → CronJob
 Gateway  → Envoy Gateway
 Routing  → HTTPRoute
@@ -564,7 +566,7 @@ CronJob + CPU/memory requests/limits
 
 Kubernetes liveness/readiness probes are defined for the backend and frontend. The backend is monitored through the `/healthcheck/` endpoint, while the frontend is monitored through the `/` endpoint.
 
-CPU and memory resource requests/limits are defined for all application workloads. The backend Deployment is configured with `maxSurge: 0` and `maxUnavailable: 1` to support controlled rolling updates in the single-node EKS environment.
+CPU and memory resource requests/limits are defined for all application workloads. The backend Deployment is configured with `maxSurge: 1` and `maxUnavailable: 0` to support controlled rolling updates in the single-node EKS environment. The old Pod is terminated only after the new Pod is ready according to the readiness probe, resulting in a `v1 → v1 + v2 → v2` transition.
 
 ETL schedule:
 

@@ -83,7 +83,7 @@ Hangi sorunları bilinçli olarak düzeltmediniz veya kapsam dışında bırakt�
 
 Temel case gereksinimleri tamamlanmış; ancak bazı production-level özellikler kapsam dışında bırakılmıştır.
 
-Örneğin Terraform/OpenTofu ile tam IaC, Prometheus/Grafana, HPA/PDB, GitOps, canary/blue-green deployment, otomatik off-site backup retention ve distributed tracing uygulanmamıştır.
+Örneğin Terraform/OpenTofu ile tam IaC, Prometheus/Grafana, HPA/PDB, GitOps, canary/blue-green deployment, otomatik off-site backup retention ve distributed tracing uygulanmamıştır. **Fakat**, backend için kontrollü `RollingUpdate` ve kapasiteye uygun resource yönetimi uygulanmış ve gerçek EKS ortamında **doğrulanmıştır**.
 
 Buna karşılık çözüm AWS EKS, Amazon ECR, GitHub OIDC, IAM, EKS RBAC, Helm tabanlı Envoy Gateway, non-root container hardening, doğrulanabilir alert kontrolleri ve Trivy ile image/dependency/secret scanning ile genişletilmiştir.
 
@@ -200,7 +200,7 @@ Karar verirken aşağıdaki konuları nasıl değerlendirdiğinizi belirtin:
 **Cevap:**
 
 - **Frontend → `Deployment`:** Stateless web workload'dur; kalıcı storage, özel Pod kimliği veya sıralı çalışma gerektirmez. Replica ve rolling update desteklenir. Liveness/readiness probe'ları ve CPU/memory resource requests/limits tanımlıdır.
-- **Backend → `Deployment`:** Stateless REST API'dir; kalıcı veri MongoDB'de tutulur. Özel Pod kimliği gerekmez ve yatay ölçeklenebilir. `/healthcheck/` üzerinden liveness/readiness probe'ları ve CPU/memory resource requests/limits tanımlıdır. Tek node'lu EKS ortamında kontrollü rolling update için `maxSurge: 0` ve `maxUnavailable: 1` kullanılmıştır.
+- **Backend → `Deployment`:** Stateless REST API'dir; kalıcı veri MongoDB'de tutulur. Özel Pod kimliği gerekmez ve yatay olarak ölçeklenebilir. `/healthcheck/` üzerinden liveness/readiness probe'ları ve CPU/memory resource requests/limits tanımlıdır. Kontrollü `RollingUpdate` için `maxSurge: 1` ve `maxUnavailable: 0` kullanılmıştır. Yeni Pod readiness probe ile hazır olduktan sonra eski Pod sonlandırılmakta ve geçiş `v1 → v1 + v2 → v2` şeklinde gerçekleşmektedir.
 - **MongoDB:** Normal deployment'ta MongoDB Atlas kullanıldığı için Kubernetes `StatefulSet` kullanılmamıştır. CI'daki MongoDB yalnızca ephemeral test workload'udur.
 - **ETL → `CronJob`:** Saatlik çalışan periyodik bir workload'dur. Her çalışma ayrı bir `Job` oluşturur; `Forbid` ile çakışan çalışmalar engellenir, başarısız çalışmalarda retry uygulanır ve CPU/memory resource requests/limits tanımlıdır.
 
@@ -281,7 +281,7 @@ kubectl rollout undo deployment/backend -n devops-case
 kubectl rollout undo deployment/frontend -n devops-case
 ```
 
-Rollback yaptıktan sonra rollout status, backend healthcheck ve frontend erişimi tekrar doğrulanır.
+Rollback yaptıktan sonra rollout status, backend healthcheck ve frontend erişimi tekrar doğrulanır. `RollingUpdate` sırasında yeni Pod'un readiness durumu doğrulanmadan eski Pod sonlandırılmadığı için deployment geçişi kontrollü şekilde gerçekleştirilir.
 
 CI/CD deployment sonrası healthcheck başarısız olduğunda job başarısız sonuçlanır.
 

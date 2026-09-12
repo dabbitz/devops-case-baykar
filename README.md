@@ -70,7 +70,7 @@ DevOps_Case_Final/
 
 ## Mevcut AWS EKS Deployment
 
-Projenin **bu çalışma sırasında kullanılan mevcut AWS EKS deployment'ına** aşağıdaki adresler üzerinden doğrudan erişilebilir:
+Projenin çalışma sırasında kullanılan AWS EKS deployment'ı üzerinden uygulamaya erişim sağlanmıştır. Aşağıdaki adreslerde yer alan AWS Load Balancer hostname'leri, public repository'de gereksiz cloud ortamı ayrıntılarını paylaşmamak amacıyla `[REDACTED]` olarak gösterilmiştir.
 
 **Uygulama:**
 
@@ -90,7 +90,9 @@ http://[REDACTED].eu-central-1.elb.amazonaws.com/records
 http://[REDACTED].eu-central-1.elb.amazonaws.com/api/healthcheck
 ```
 
-> **Önemli:** Yukarıdaki adresler, bu çalışma sırasında oluşturulmuş olan mevcut AWS Load Balancer'a aittir. Bu adresler **kalıcı bir production URL'si olarak değerlendirilmemelidir**. Özellikle EKS cluster'ı, Envoy Gateway veya Load Balancer yeniden oluşturulursa AWS yeni bir hostname atayabilir. Ayrıca teslim sonrasında kullanılan AWS kaynaklarının kaldırılması durumunda yukarıdaki adreslere erişim mümkün olmayabilir.
+> **Önemli:** Kullanılan adresler, bu çalışma sırasında oluşturulmuş olan mevcut AWS Load Balancer'a aittir. Bu adresler **kalıcı bir production URL'si olarak değerlendirilmemelidir**. Özellikle EKS cluster'ı, Envoy Gateway veya Load Balancer yeniden oluşturulursa AWS yeni bir hostname atayabilir. Ayrıca teslim sonrasında kullanılan AWS kaynaklarının kaldırılması durumunda erişilemez hale gelebilir.
+
+> **Gerçek EKS erişim adresi:** Public repository'de Load Balancer hostname'i `[REDACTED]` olarak gösterilmiştir. Çalışma sırasında kullanılan gerçek erişim adresi teslim edilen .zip dosyasının içinde, projenin root'unda, bir `.txt` dosyasında paylaşılmıştır.
 
 ### Güncel EKS erişim adresini bulma
 
@@ -526,7 +528,7 @@ EKS deployment'ında:
 
 ```text
 Frontend → Deployment + ClusterIP Service + liveness/readiness probes
-Backend  → Deployment + ClusterIP Service + liveness/readiness probes
+Backend  → Deployment + ClusterIP Service + liveness/readiness probes + controlled RollingUpdate
 ETL      → CronJob
 Gateway  → Envoy Gateway
 Routing  → HTTPRoute
@@ -581,7 +583,7 @@ CronJob + CPU/memory requests/limits
 
 Backend ve frontend için Kubernetes liveness/readiness probe'ları tanımlanmıştır. Backend `/healthcheck/`, frontend `/` endpoint'i üzerinden kontrol edilmektedir.
 
-Tüm uygulama workload'larında CPU ve memory resource requests/limits tanımlanmıştır. Backend Deployment'ı tek node'lu EKS ortamına uygun olarak `maxSurge: 0` ve `maxUnavailable: 1` ile yapılandırılmıştır.
+Tüm uygulama workload'larında CPU ve memory resource requests/limits tanımlanmıştır. Backend Deployment'ı tek node'lu EKS ortamına uygun olarak `maxSurge: 1` ve `maxUnavailable: 0` ile yapılandırılmıştır. Yeni Pod, readiness probe ile hazır olduktan sonra eski Pod sonlandırılır ve geçiş `v1 → v1 + v2 → v2` şeklinde gerçekleşir.
 
 ETL schedule:
 

@@ -52,7 +52,7 @@ Screenshots must not expose real credentials, tokens, passwords, private keys, o
 - **Health check and resource definitions (etl):** `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
 - **Explanation:** The application has been deployed to the `devops-case-eks` cluster on AWS EKS. The backend and frontend Deployments, Service resources, and the Python ETL CronJob are running on EKS. Container images are pulled from Amazon ECR.
 
-Kubernetes liveness/readiness probes are defined for the backend and frontend Deployments. The backend uses the `/healthcheck/` endpoint, while the frontend uses the `/` endpoint. CPU and memory resource requests/limits are defined for the backend, frontend, and ETL workloads. The backend Deployment uses `maxSurge: 0` and `maxUnavailable: 1` for a controlled rolling update suitable for the single-node EKS environment.
+Liveness/readiness probes are defined for the Kubernetes backend and frontend Deployments. The `/healthcheck/` endpoint is used for the backend, while `/` is used for the frontend. CPU and memory resource requests/limits are defined for the backend, frontend, and ETL workloads. The backend Deployment is configured with `maxSurge: 1` and `maxUnavailable: 0` (detailed in Section 7.1).
 
 ### 3.3 Cloud external access
 
@@ -191,7 +191,7 @@ Add evidence for any implemented logging, monitoring, alerting, Helm, Terraform,
 
 The evidence for the implemented logging, monitoring, alerting, security controls, and other advanced criteria is provided below.
 
-### 7.1 Advanced Criteria #3 — High Availability and Scalability: Rolling Update and Capacity Approach
+### 7.1 Advanced Criteria #3 - High Availability and Scalability: Rolling Update and Capacity Approach
 
 - **Health check and resource configuration screenshots:**
 
@@ -199,17 +199,18 @@ The evidence for the implemented logging, monitoring, alerting, security control
   - `docs/screenshots/40-eks-healthchecks-resources-frontend.png`
   - `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
 
-* **Explanation:** The Kubernetes workloads define CPU and memory resource requests/limits, and the backend Deployment uses a controlled `RollingUpdate` strategy with `maxSurge: 0` and `maxUnavailable: 1`. This configuration was selected to support controlled updates within the capacity constraints of the single-node EKS case environment while avoiding unnecessary resource pressure during deployment.
+- **Rolling update screenshot:** `docs/screenshots/42-eks-rolling-update.png`
+- **Explanation:** CPU and memory resource requests/limits are defined for the Kubernetes workloads. The backend Deployment uses a controlled `RollingUpdate` strategy with `maxSurge: 1` and `maxUnavailable: 0`. During deployment, the new Pod is created first, and the old Pod is not terminated until the new Pod has been confirmed ready by the readiness probe. This results in a version transition of `v1 → v1 + v2 → v2`. This behavior was verified during an actual rollout in the EKS environment and is evidenced by `docs/screenshots/42-eks-rolling-update.png`.
 
-### 7.2 Advanced Criteria #4 — Advanced Observability: Verified Alert Scenarios
+### 7.2 Advanced Criteria #4 - Advanced Observability: Verified Alert Scenarios
 
-- **Alert check and test screenshot:** `docs/screenshots/42-alerts-check.png`
+- **Alert check and test screenshot:** `docs/screenshots/43-alerts-check.png`
 - **Alert definition:** `scripts/check-alerts.ps1`
 - **Explanation:** The `check-alerts.ps1` script provides executable alert checks for two critical events. `ALERT-001` checks whether the ETL CronJob has failed or whether no successful run has occurred within the expected time window. `ALERT-002` checks whether the frontend or backend health endpoints are inaccessible. In test mode, both alerts were intentionally triggered and the script terminated with exit code 1. During the normal check with the system in a healthy state, no critical alert was generated and the script completed successfully.
 
-### 7.3 Advanced Criteria #5 — Advanced Security: Image / Dependency / Secret Scanning
+### 7.3 Advanced Criteria #5 - Advanced Security: Image / Dependency / Secret Scanning
 
-- **Trivy container security scan screenshot:** `docs/screenshots/43-trivy-security-scan.png`
+- **Trivy container security scan screenshot:** `docs/screenshots/44-trivy-security-scan.png`
 - **Explanation:** The frontend, backend, and Python ETL container images are scanned using Trivy as part of the GitHub Actions CI pipeline. The scan checks OS packages, application dependencies, and potentially embedded secrets within the images. Scan results are reported in the GitHub Actions logs, and under the current case configuration, vulnerability findings do not automatically block deployment.
 
 ### 7.4 ETL Logging
@@ -219,20 +220,20 @@ The evidence for the implemented logging, monitoring, alerting, security control
 
 ### 7.5 ETL Scheduling
 
-- **EKS CronJob schedule screenshot:** `docs/screenshots/44-eks-cronjob-schedule.png`
+- **EKS CronJob schedule screenshot:** `docs/screenshots/45-eks-cronjob-schedule.png`
 - **Explanation:** The `etl` CronJob running on EKS is shown to use the `0 * * * *` schedule for hourly execution and the `Europe/Istanbul` timezone.
 
 ## 8. Additional Evidence
 
 ### 8.1 Kubernetes Security Hardening
 
-- **Backend non-root evidence:** `docs/screenshots/45-backend-non-root-kubernetes.png`
-- **Frontend non-root evidence:** `docs/screenshots/46-frontend-non-root-kubernetes.png`
-- **ETL non-root evidence:** `docs/screenshots/47-etl-non-root-kubernetes.png`
+- **Backend non-root evidence:** `docs/screenshots/46-backend-non-root-kubernetes.png`
+- **Frontend non-root evidence:** `docs/screenshots/47-frontend-non-root-kubernetes.png`
+- **ETL non-root evidence:** `docs/screenshots/48-etl-non-root-kubernetes.png`
 - **Explanation:** The Kubernetes workloads were verified not to run as the root user. The backend runs as `node` (UID 1000), the frontend as `nginx` (UID 101), and the ETL as `appuser` (UID 10001). In addition, `allowPrivilegeEscalation` is disabled and all Linux capabilities are dropped.
 
 ### 8.2 AWS / EKS deployment configuration
 
-- **EKS cluster and node status:** `docs/screenshots/48-eks-cluster-config.png`
-- **EKS managed node group configuration:** `docs/screenshots/49-eks-node-group-config.png`
+- **EKS cluster and node status:** `docs/screenshots/49-eks-cluster-config.png`
+- **EKS managed node group configuration:** `docs/screenshots/50-eks-node-group-config.png`
 - **Explanation:** The `devops-case-eks` EKS cluster is shown to be running in the `eu-central-1` region with a `Ready` worker node. The running node uses Kubernetes `v1.36.3` and Amazon Linux 2023. The EKS managed node group is configured with the name `devops-workers` and uses the `t3.small` instance type with 1 desired node. The cluster and node group configuration is defined in the repository's `eks-cluster.yaml` file.
