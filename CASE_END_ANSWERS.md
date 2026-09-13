@@ -53,6 +53,8 @@ The frontend NGINX forwards `/api/` requests to `backend-service:5050`. The back
 
 The ETL separately retrieves repository information from the GitHub API and performs an upsert on the `github_repositories` collection using `github_id`.
 
+MongoDB Atlas data is also backed up daily by the `mongodb-backup` Kubernetes CronJob using `mongodump` and stored outside the cluster in Amazon S3.
+
 Detailed architecture: `docs/architecture.md`
 
 ---
@@ -83,9 +85,9 @@ Which issues did you intentionally leave unresolved or out of scope? Explain the
 
 The core case requirements have been completed, while some advanced production-level features were left out of scope.
 
-Full IaC with Terraform/OpenTofu, Prometheus/Grafana-based advanced monitoring, HPA/PDB and multi-node high availability, GitOps, canary/blue-green deployment, automated off-site backup/retention, and distributed tracing were not implemented.
+Full IaC with Terraform/OpenTofu, Prometheus/Grafana-based advanced monitoring, HPA/PDB and multi-node high availability, GitOps, canary/blue-green deployment, PITR, automated restore verification, S3 Lifecycle-based automatic retention, and distributed tracing were not implemented.
 
-However, a controlled `RollingUpdate`, CPU/memory resource management, Kustomize-based environment management, verifiable alert checks, and Trivy image/dependency/secret scanning were implemented and verified in the actual EKS environment.
+However, Kustomize-based environment management, controlled `RollingUpdate`, CPU/memory resource management, verifiable alert checks, Trivy image/dependency/secret scanning, and daily automated MongoDB backup to cluster-external Amazon S3 were implemented and verified in the actual EKS environment.
 
 The omitted areas can be added separately according to production scaling, observability, release management, and disaster recovery requirements.
 
@@ -99,9 +101,9 @@ Why did you choose a cloud environment or a virtual machine? Which components or
 
 AWS EKS was selected because the application is container-based and the frontend, backend, and periodic ETL workloads were intended to run on managed Kubernetes in a real cloud environment.
 
-This allowed Amazon ECR, AWS IAM, GitHub OIDC, EKS RBAC, Envoy Gateway, and the AWS Load Balancer to be used together.
+This allowed Amazon ECR, AWS IAM, GitHub OIDC, EKS RBAC, Envoy Gateway, AWS Load Balancer, and Amazon S3 to be used together.
 
-In a production environment, I would additionally use Terraform/OpenTofu for full IaC, HPA and node autoscaling, PDB and multi-node distribution, Prometheus/Grafana, centralized secret management, automated off-site backups, HTTPS/domain management, and controlled release strategies.
+In a production environment, I would additionally use Terraform/OpenTofu for full IaC, HPA and node autoscaling, PDB and multi-node distribution, Prometheus/Grafana, centralized secret management, HTTPS/domain management, defined backup retention, automated restore verification/PITR, and controlled release strategies.
 
 ---
 
@@ -407,23 +409,82 @@ Provide your runbook in `docs/backup-restore.md` and reference the evidence from
 
 **Answer:**
 
-MongoDB Atlas data was backed up at the `sample_training` database level using `mongodump` and stored under:
+MongoDB Atlas data is backed up in the production environment by the `mongodb-backup` Kubernetes CronJob running on AWS EKS.
+
+Backup flow:
 
 ```text
-backups/sample-training-backup/
+MongoDB Atlas
+      ↓
+EKS mongodb-backup CronJob
+      ↓
+mongodump
+      ↓
+.archive.gz
+      ↓
+Amazon S3
+sample_training/
 ```
 
-Test scope:
+Backup schedule:
+
+```text
+0 2 * * *
+```
+
+Timezone:
+
+```text
+Europe/Istanbul
+```
+
+Backup files are created as separate archive files with UTC timestamps.
+
+Example:
+
+```text
+sample_training_20260912T230006Z.archive.gz
+```
+
+Backups are stored outside the cluster in Amazon S3:
+
+```text
+s3://devops-case-baykar-backups-203309795174/sample_training/
+```
+
+The backup archive is checked with `test -s` to ensure that it is not empty, and the uploaded S3 object is verified using `aws s3api head-object`.
+
+The backup workload uses a dedicated `s3-backup` ServiceAccount, and the required S3 access is restricted through a least-privilege IAM policy. The backup containers run as non-root users with privilege escalation disabled.
+
+No S3 Lifecycle-based automatic retention/deletion policy was implemented as part of this case. Therefore, no formal production retention period was defined.
+
+Because the backup is scheduled daily, the theoretical maximum backup window is approximately 24 hours. This is not a formal production SLA; it reflects the backup frequency used in the case environment.
+
+S3 upload success is automatically verified. In addition, a manual end-to-end restore test was performed in the local environment to verify that the backup is actually restorable.
+
+The manual test used `scripts/backup-restore.ps1` and followed this flow:
+
+```text
+Record creation
+      ↓
+Backup
+      ↓
+Database deletion
+      ↓
+Verify data loss
+      ↓
+mongorestore
+      ↓
+UI + MongoDB verification
+```
+
+The test covered:
 
 ```text
 records              → 1 document
 github_repositories  → 1 document
 Total                → 2 documents
 ```
-
-The backup process is not automatically scheduled in the current case solution. The actual E2E test was performed manually. In addition, `scripts/backup-restore.ps1` was added to the repository to make backup and restore operations repeatable. The `-Action Backup` and `-Action Restore -DropExisting` scenarios were successfully tested.
-
-The restore test deleted the database, verified data loss through both the application and MongoDB, restored the backup, and then verified collection/document counts and application access again.
 
 Restore result:
 
@@ -434,24 +495,33 @@ Restore result:
 
 The measured `mongorestore` execution time was approximately **1.3 seconds**. This represents only the restore command execution time and should not be interpreted as an end-to-end production RTO.
 
-No formal production RPO/RTO SLA or automated retention mechanism was defined for the case environment.
-
-In production, I would use automated and encrypted backups, defined retention, off-site/object storage, backup integrity verification, regular restore tests, and explicit RPO/RTO targets.
+No formal production RPO/RTO SLA was defined for the case environment. In production, these targets should be explicitly defined according to business requirements and supported by backup frequency, restore verification, retention, encryption, S3 Lifecycle, PITR, and regular DR drills.
 
 Runbook: `docs/backup-restore.md`
-Script: `scripts/backup-restore.ps1`
+
+Backup script and manual E2E test: `scripts/backup-restore.ps1`
+
+Automatic backup manifests:
+
+- `k8s/eks/backup-cronjob.yaml`
+- `k8s/eks/backup-serviceaccount.yaml`
+
 Evidence: the `Backup and Restore` section of `SUBMISSION_EVIDENCE.md`.
 
 - **Record creation 1:** `docs/screenshots/29-backup-record-created-01.png`
 - **Record creation 2:** `docs/screenshots/30-backup-record-created-02.png`
-- **Taking the backup (screenshot or terminal output):** `docs/screenshots/31-backup-taken.png`
-- **Dropping the collection or database (screenshot or terminal output):** `docs/screenshots/32-collection-dropped.png`
-- **Showing that the data is gone (interface screenshot):** `docs/screenshots/33-data-missing-after-drop-ui.png`
-- **Showing that the data is gone (database output):** `docs/screenshots/34-data-missing-after-drop-database.png`
-- **Restoring from the backup (screenshot or terminal output):** `docs/screenshots/35-restore-executed.png`
-- **Verifying that the data is back (interface screenshot):** `docs/screenshots/36-data-restored-verified-ui.png`
-- **Verifying that the data is back (database output (1)):** `docs/screenshots/37-data-restored-verified-database-01.png`
-- **Verifying that the data is back (database output (2)):** `docs/screenshots/38-data-restored-verified-database-02.png`
+- **Manual backup:** `docs/screenshots/31-backup-taken.png`
+- **Collection or database deletion:** `docs/screenshots/32-collection-dropped.png`
+- **Data loss verification (user interface):** `docs/screenshots/33-data-missing-after-drop-ui.png`
+- **Data loss verification (database):** `docs/screenshots/34-data-missing-after-drop-database.png`
+- **Restore from backup:** `docs/screenshots/35-restore-executed.png`
+- **Restore verification (user interface):** `docs/screenshots/36-data-restored-verified-ui.png`
+- **Restore verification (database 1):** `docs/screenshots/37-data-restored-verified-database-01.png`
+- **Restore verification (database 2):** `docs/screenshots/38-data-restored-verified-database-02.png`
+
+Automatic scheduled backup evidence:
+
+`docs/screenshots/47-backup-cronjob-scheduled-success.png`
 
 ---
 
@@ -461,12 +531,14 @@ Use this section for any additional decisions, limitations, or future improvemen
 
 **Answer:**
 
-In the final stage of the work, the application was moved from local Kubernetes validation to a real AWS EKS environment and automated cloud deployment was established through GitHub Actions.
+In the final stage of the work, the application was moved to a real AWS EKS environment and automated cloud deployment was established through GitHub Actions.
 
-The CI/CD flow uses GitHub OIDC with an AWS IAM Role, pushes images to Amazon ECR using commit SHA tags, and deploys the same versions to EKS through the `k8s/overlays/prod` Kustomize overlay.
+The CI/CD flow uses GitHub OIDC with an AWS IAM Role, pushes images to Amazon ECR using commit SHA tags, and deploys the production environment through the `k8s/overlays/prod` Kustomize overlay.
 
 Before deployment, the Kustomize output is validated with a server-side dry run, followed by application of the production overlay. Deployment images are then updated using commit SHA tags, and rollout and healthcheck verification are performed.
 
-The core case requirements have been implemented and verified. In addition, the solution implements Kustomize-based environment management, controlled RollingUpdate and capacity-aware workload configuration, verified alert scenarios, and Trivy-based image/dependency/secret scanning.
+The core case requirements have been implemented and verified. In addition, the solution implements Kustomize-based environment management, controlled RollingUpdate and capacity-aware workload configuration, verified alert scenarios, Trivy-based image/dependency/secret scanning, and daily automated MongoDB backup to cluster-external Amazon S3.
 
-The current solution has been completed to satisfy the case requirements. Further production improvements could include full IaC, advanced monitoring and autoscaling, centralized secret management, multi-node high availability, controlled release strategies, and more advanced disaster recovery.
+The backup/restore implementation separates the automated production backup mechanism from the manual end-to-end restore test. The automated mechanism provides regular off-cluster backup storage, while the manual test verifies that the backup can actually be restored.
+
+Further production improvements could include full IaC, advanced monitoring and autoscaling, centralized secret management, multi-node high availability, controlled release strategies, S3 Lifecycle/PITR, automated restore verification, and regular DR drills.

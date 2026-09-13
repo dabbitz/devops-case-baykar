@@ -31,27 +31,29 @@ Diyagram Mermaid, Draw.io, Excalidraw veya benzeri bir araçla hazırlanabilir. 
 Ana deployment AWS EKS üzerinde çalışmaktadır. Frontend ve backend `Deployment + ClusterIP Service`, Python ETL ise saatlik `CronJob` olarak çalışır.
 
 ```text
-              User / Browser
-                    ↓
-             AWS Load Balancer
-                    ↓
-               Envoy Gateway
-                    ↓
-                  HTTPRoute
-                ┌────┴────┐
-                ↓         ↓
-            Frontend   Backend
-             Service   Service
-                ↓         ↓
-              React    Node.js
-             + NGINX   + Express
-                           ↓
-                      MongoDB Atlas
+User / Browser
+      ↓
+AWS Load Balancer
+      ↓
+Envoy Gateway
+      ↓
+HTTPRoute
+   ┌──┴────┐
+   ↓       ↓
+Frontend Backend
+Service  Service
+   ↓       ↓
+React   Node.js
++ NGINX + Express
+           ↓
+      MongoDB Atlas
 ```
 
 Frontend NGINX `/api/` isteklerini `backend-service:5050` adresine yönlendirir. Backend record CRUD işlemlerini MongoDB Atlas'taki `sample_training` database'inde gerçekleştirir.
 
 ETL ayrı bir iş akışı olarak GitHub API'den repository bilgilerini alır ve `github_id` üzerinden `github_repositories` collection'ındaki kaydı upsert eder.
+
+Ayrıca, MongoDB Atlas verileri günlük `mongodb-backup` Kubernetes CronJob ile `mongodump` kullanılarak yedeklenir ve Amazon S3 üzerinde cluster dışında saklanır.
 
 Ayrıntılı mimari: `docs/architecture.md`
 
@@ -81,11 +83,11 @@ Hangi sorunları bilinçli olarak düzeltmediniz veya kapsam dışında bırakt�
 
 **Cevap:**
 
-Temel case gereksinimleri tamamlanmış; ancak bazı ileri seviye production özellikleri kapsam dışında bırakılmıştır.
+Temel case gereksinimleri tamamlanmış ve bazı üst kriterler de uygulanmıştır. Buna karşılık tam production ölçeği gerektiren bazı ileri seviye özellikler kapsam dışında bırakılmıştır.
 
-Terraform/OpenTofu ile tam IaC, Prometheus/Grafana tabanlı gelişmiş monitoring, HPA/PDB ve çoklu node yüksek erişilebilirliği, GitOps, canary/blue-green deployment, otomatik off-site backup/retention ve distributed tracing uygulanmamıştır.
+Terraform/OpenTofu ile tam IaC, Prometheus/Grafana tabanlı gelişmiş monitoring, HPA/PDB ve çoklu node yüksek erişilebilirliği, GitOps, canary/blue-green deployment, PITR, otomatik restore verification, S3 Lifecycle tabanlı otomatik retention ve distributed tracing uygulanmamıştır.
 
-Buna karşılık mevcut case ortamının kapasitesine uygun olarak kontrollü `RollingUpdate`, CPU/memory resource yönetimi, Kustomize ile environment yönetimi, doğrulanabilir alarm kontrolleri ve Trivy image/dependency/secret scanning uygulanmış ve gerçek EKS ortamında doğrulanmıştır.
+Fakat, mevcut case ortamının kapasitesine uygun olarak Kustomize ile environment yönetimi, kontrollü `RollingUpdate`, CPU/memory resource yönetimi, doğrulanabilir alarm kontrolleri, Trivy image/dependency/secret scanning ve cluster dışı Amazon S3'e günlük otomatik MongoDB backup uygulanmış ve gerçek EKS ortamında doğrulanmıştır.
 
 Production ortamında kapsam dışında bırakılan özellikler; ölçekleme, gözlemlenebilirlik, release management ve disaster recovery ihtiyaçlarına göre ayrıca eklenebilir.
 
@@ -99,9 +101,9 @@ Cloud veya sanal makine tercihinin gerekçesi nedir? Gerçek bir production orta
 
 AWS EKS seçilmiştir çünkü uygulama container tabanlıdır ve frontend, backend ve periyodik ETL workload'larının managed Kubernetes üzerinde gerçek bir cloud ortamında çalıştırılması hedeflenmiştir.
 
-Bu seçim ile Amazon ECR, AWS IAM, GitHub OIDC, EKS RBAC, Envoy Gateway ve AWS Load Balancer birlikte kullanılabilmiştir.
+Bu seçim ile Amazon ECR, AWS IAM, GitHub OIDC, EKS RBAC, Envoy Gateway, AWS Load Balancer ve Amazon S3 birlikte kullanılabilmiştir.
 
-Production ortamında mevcut yapının üzerine Terraform/OpenTofu ile tam IaC, HPA ve node autoscaling, PDB ve multi-node dağılım, Prometheus/Grafana, merkezi secret management, otomatik off-site backup, HTTPS/domain yönetimi ve kontrollü release stratejileri eklerdim.
+Production ortamında, mevcut yapının üzerine Terraform/OpenTofu ile tam IaC, HPA ve node autoscaling, PDB ve multi-node dağılım, Prometheus/Grafana, merkezi secret management, HTTPS/domain yönetimi, tanımlı backup retention, otomatik restore verification/PITR ve kontrollü release stratejileri eklerdim.
 
 ---
 
@@ -396,7 +398,74 @@ Runbook’unuzu `docs/backup-restore.md` içinde paylaşın ve kanıtları `TESL
 
 **Cevap:**
 
-MongoDB Atlas verisi `mongodump` ile `sample_training` database'i seviyesinde yedeklenmiş ve backup `backups/sample-training-backup/` altında saklanmıştır.
+MongoDB Atlas verilerinin production backup'ı AWS EKS üzerinde çalışan `mongodb-backup` Kubernetes CronJob ile günlük olarak alınmaktadır.
+
+Backup akışı:
+
+```text
+MongoDB Atlas
+      ↓
+EKS mongodb-backup CronJob
+      ↓
+mongodump
+      ↓
+.archive.gz
+      ↓
+Amazon S3
+sample_training/
+```
+
+Backup schedule:
+
+```text
+0 2 * * *
+```
+
+Timezone:
+
+```text
+Avrupa/İstanbul
+```
+
+Backup dosyaları UTC timestamp içeren ayrı archive dosyaları olarak oluşturulmaktadır. Örnek:
+
+```text
+sample_training_20260912T230006Z.archive.gz
+```
+
+Backup'lar cluster dışındaki Amazon S3 üzerinde saklanmaktadır:
+
+```text
+s3://devops-case-baykar-backups-203309795174/sample_training/
+```
+
+Backup archive'ının boş olmadığı `test -s` ile kontrol edilmekte ve S3 upload sonrasında `aws s3api head-object` ile object'ın başarıyla oluşturulduğu doğrulanmaktadır.
+
+Backup workload'u ayrı `s3-backup` ServiceAccount kullanmakta ve gerekli S3 erişimi least-privilege IAM policy ile sınırlandırılmaktadır. Backup container'ları non-root kullanıcılarla çalıştırılmakta ve privilege escalation devre dışı bırakılmaktadır.
+
+Bu case kapsamında S3 Lifecycle tabanlı otomatik retention/silme politikası uygulanmamıştır. Bu nedenle formal production retention süresi tanımlanmamıştır.
+
+Günlük backup schedule'ı nedeniyle teorik maksimum backup penceresi yaklaşık 24 saattir; bu değer resmi bir production SLA'sı değil, mevcut case ortamındaki backup sıklığının doğal sonucudur.
+
+Backup archive'ının S3'e başarıyla gönderilmesi otomatik olarak doğrulanmaktadır. Ayrıca backup'ın gerçekten geri yüklenebilir olduğunu doğrulamak için local ortamda manuel bir end-to-end restore testi gerçekleştirilmiştir.
+
+Manuel testte `scripts/backup-restore.ps1` kullanılarak:
+
+```text
+Kayıt oluşturma
+      ↓
+Backup alma
+      ↓
+Database'i silme
+      ↓
+Verinin kaybolduğunu doğrulama
+      ↓
+mongorestore
+      ↓
+UI + MongoDB verification
+```
+
+akışı gerçekleştirilmiştir.
 
 Test kapsamında:
 
@@ -408,37 +477,42 @@ Total                → 2 documents
 
 yedeklenmiştir.
 
-Mevcut case çözümünde backup işlemi otomatik zamanlanmış bir mekanizma ile çalıştırılmamaktadır. Backup ve restore işlemlerini tekrarlanabilir hale getirmek için `scripts/backup-restore.ps1` script'i repository'ye eklenmiş ve `-Action Backup` ile `-Action Restore -DropExisting` senaryoları gerçek veri üzerinde başarıyla test edilmiştir.
-
-End-to-end restore testinde database silinmiş, veri kaybı UI ve MongoDB üzerinden doğrulanmış, ardından backup geri yüklenerek collection/document count ve uygulama erişimi tekrar kontrol edilmiştir.
-
-Restore sonucu:
+Restore sonucunda:
 
 ```text
 2 documents restored successfully.
 0 documents failed to restore.
 ```
 
-Ölçülen `mongorestore` çalışma süresi yaklaşık **1.3 saniyedir**. Bu değer yalnızca restore komutunun çalışma süresidir; uçtan uca production RTO olarak değerlendirilmemiştir.
+Restore sırasında ölçülen `mongorestore` çalışma süresi yaklaşık **1.3 saniyedir**. Bu değer yalnızca restore komutunun çalışma süresidir; uçtan uca production RTO olarak değerlendirilmemiştir.
 
-Mevcut case çözümünde formal bir production RPO/RTO SLA'sı ve otomatik retention mekanizması tanımlanmamıştır.
-
-Production ortamında otomatik ve encrypted backup, tanımlı retention, off-site/object storage, backup integrity verification, düzenli restore testleri ve açıkça belirlenmiş RPO/RTO hedefleri kullanılmalıdır.
+Mevcut case ortamında formal production RPO/RTO SLA'sı tanımlanmamıştır. Production ortamında bu hedefler iş gereksinimlerine göre açıkça belirlenmeli; örneğin backup frequency, restore verification, retention, encryption, S3 Lifecycle, PITR ve düzenli DR drill ile desteklenmelidir.
 
 Runbook: `docs/backup-restore.md`
-Script: `scripts/backup-restore.ps1`
+
+Backup script'i ve manuel E2E test: `scripts/backup-restore.ps1`
+
+Otomatik backup manifestleri:
+
+- `k8s/eks/backup-cronjob.yaml`
+- `k8s/eks/backup-serviceaccount.yaml`
+
 Kanıtlar: `TESLIM_KANITLARI.md`, `6. Backup ve Restore` bölümünden: 
 
 - **Kayıt oluşturma 1:** `docs/screenshots/29-backup-record-created-01.png`
 - **Kayıt oluşturma 2:** `docs/screenshots/30-backup-record-created-02.png`
-- **Yedek alma (görsel veya terminal çıktısı):** `docs/screenshots/31-backup-taken.png`
-- **Collection veya veritabanının silinmesi (görsel veya terminal çıktısı)** `docs/screenshots/32-collection-dropped.png`
-- **Verinin kaybolduğunun gösterilmesi (arayüz görseli):** `docs/screenshots/33-data-missing-after-drop-ui.png`
-- **Verinin kaybolduğunun gösterilmesi (veritabanı çıktısı):** `docs/screenshots/34-data-missing-after-drop-database.png`
-- **Yedekten geri yükleme (görsel veya terminal çıktısı):** `docs/screenshots/35-restore-executed.png`
-- **Verinin geri geldiğinin doğrulanması (arayüz görseli):** `docs/screenshots/36-data-restored-verified-ui.png`
-- **Verinin geri geldiğinin doğrulanması (veritabanı çıktısı (1)):** `docs/screenshots/37-data-restored-verified-database-01.png`
-- **Verinin geri geldiğinin doğrulanması (veritabanı çıktısı (2)):** `docs/screenshots/38-data-restored-verified-database-02.png`
+- **Manuel yedek alma:** `docs/screenshots/31-backup-taken.png`
+- **Collection veya database'in silinmesi:** `docs/screenshots/32-collection-dropped.png`
+- **Verinin kaybolduğunun gösterilmesi (UI):** `docs/screenshots/33-data-missing-after-drop-ui.png`
+- **Verinin kaybolduğunun gösterilmesi (database):** `docs/screenshots/34-data-missing-after-drop-database.png`
+- **Yedekten geri yükleme:** `docs/screenshots/35-restore-executed.png`
+- **Restore sonrası UI doğrulaması:** `docs/screenshots/36-data-restored-verified-ui.png`
+- **Restore sonrası database doğrulaması (1):** `docs/screenshots/37-data-restored-verified-database-01.png`
+- **Restore sonrası database doğrulaması (2):** `docs/screenshots/38-data-restored-verified-database-02.png`
+
+Otomatik scheduled backup kanıtı:
+
+`docs/screenshots/47-backup-cronjob-scheduled-success.png`
 
 ---
 
@@ -454,6 +528,8 @@ CI/CD akışında GitHub OIDC ile AWS IAM Role kullanılmış, image'lar commit 
 
 Deployment öncesinde Kustomize çıktısı server-side dry-run ile doğrulanmış, ardından production overlay EKS'e uygulanmıştır. Deployment sonrasında image sürümleri commit SHA ile güncellenmiş, rollout ve healthcheck kontrolleri gerçekleştirilmiştir.
 
-Ana case kriterleri uygulanmış ve doğrulanmıştır. Ayrıca Kustomize ile environment yönetimi, kontrollü RollingUpdate ve kapasiteye uygun workload yapılandırması, doğrulanmış alarm senaryoları ve Trivy ile image/dependency/secret scanning uygulanmıştır.
+Ana case kriterleri uygulanmış ve doğrulanmıştır. Ayrıca Kustomize ile environment yönetimi, kontrollü RollingUpdate ve kapasiteye uygun workload yapılandırması, doğrulanmış alarm senaryoları, Trivy ile image/dependency/secret scanning ve cluster dışı Amazon S3'e günlük otomatik MongoDB backup uygulanmıştır.
 
-Daha ileri production ihtiyaçları olarak tam IaC, gelişmiş monitoring ve autoscaling, merkezi secret management, multi-node yüksek erişilebilirlik, kontrollü release stratejileri ve gelişmiş disaster recovery sonraki geliştirme alanları olarak değerlendirilebilir.
+Backup/restore tarafında otomatik production backup mekanizması ile manuel E2E restore testi birbirinden ayrılmıştır. Otomatik mekanizma düzenli ve cluster dışı backup sağlarken, manuel test backup'ın gerçekten geri yüklenebilir olduğunu doğrulamaktadır.
+
+Daha ileri production ihtiyaçları olarak tam IaC, gelişmiş monitoring ve autoscaling, merkezi secret management, multi-node yüksek erişilebilirlik, kontrollü release stratejileri, S3 Lifecycle/PITR, otomatik restore verification ve düzenli DR drill sonraki geliştirme alanları olarak değerlendirilebilir.

@@ -52,7 +52,7 @@ Ekran görüntülerinde gerçek credential, token, parola, private key veya hass
 - **Health check ve resource tanımları (etl):** `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
 - **Açıklama:** Uygulama AWS EKS üzerinde `devops-case-eks` cluster'ına deploy edilmiştir. Backend ve frontend Deployment'ları, Service kaynakları ve Python ETL CronJob'u EKS üzerinde çalışmaktadır. Container image'ları Amazon ECR üzerinden çekilmektedir.
 
-Backend ve frontend Deployment'larında Kubernetes liveness/readiness probe'ları tanımlanmıştır. Backend için `/healthcheck/`, frontend için `/` endpoint'i kullanılmaktadır. Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits tanımlanmıştır. Backend Deployment'ında `maxSurge: 1` ve `maxUnavailable: 0` ayarlanmıştır (7.1'de detaylar açıklanmıştır).
+Backend ve frontend Deployment'larında Kubernetes liveness/readiness probe'ları tanımlanmıştır. Backend için `/healthcheck/`, frontend için `/` endpoint'i kullanılmaktadır. Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits tanımlanmıştır. Backend Deployment'ında `maxSurge: 1` ve `maxUnavailable: 0` ayarlanmıştır (7.2'de detaylar açıklanmıştır).
 
 ### 3.3 Cloud dış erişim
 
@@ -113,10 +113,16 @@ Aynı repository tekrar işlendiğinde duplicate kayıt oluşmadığını ve mev
 
 Aşağıdaki altı adımın tamamı kanıtlanmalıdır. Adımların aynı kayıt üzerinde ve sırayla yapıldığı anlaşılmalıdır.
 
+Bu bölümdeki 6.1–6.6 adımları, backup ve restore mekanizmasının gerçek veri üzerinde uçtan uca doğrulandığı **manuel uçtan uca test senaryosunu** göstermektedir.
+
+Production ortamındaki düzenli backup mekanizması ise ayrıca **7.7 – Üst Kriter #7** altında gösterilen otomatik EKS CronJob → Amazon S3 akışıdır.
+
+Aşağıdaki altı adım aynı `sample_training` database'i üzerinde ve sırayla gerçekleştirilmiştir.
+
 ### 6.0 Backup/Restore Script
 
 - **Script:** `scripts/backup-restore.ps1`
-- **Açıklama:** Backup ve restore işlemleri repository içerisinde bulunan PowerShell script'i üzerinden tekrarlanabilir şekilde çalıştırılabilir. `-Action Backup` ve `-Action Restore -DropExisting` senaryoları başarıyla test edilmiştir. 6.1'de başlayan manual command chain ise kullanılan MongoDB backup yöntemini açıkça göstermektedir.
+- **Açıklama:** Backup ve restore işlemleri repository içerisinde bulunan PowerShell script'i üzerinden manuel olarak tekrarlanabilir şekilde çalıştırılabilir. `-Action Backup` ve `-Action Restore -DropExisting` senaryoları başarıyla test edilmiştir.
 
 ```powershell
 .\scripts\backup-restore.ps1 -Action Backup
@@ -130,9 +136,9 @@ Mevcut collection'ların üzerine restore edilmesi gerektiğinde:
 .\scripts\backup-restore.ps1 -Action Restore -DropExisting
 ```
 
-Script gerçek credential içermemekte; MongoDB bağlantı bilgisini local `.env` içerisindeki `ATLAS_URI` değerinden almaktadır. Backup çıktıları `backups/` altında oluşturulmakta ve `.gitignore` tarafından repository dışında tutulmaktadır.
+Script gerçek credential içermemekte; MongoDB bağlantı bilgisini local `.env` içerisindeki `ATLAS_URI` değerinden almaktadır.
 
-Aşağıdaki altı adımın tamamı aynı `sample_training` database'i üzerinde ve sırayla gerçekleştirilmiştir.
+Bu script, production'daki günlük otomatik S3 backup mekanizmasından bağımsız olarak **manuel backup/restore uçtan uca testi** amacıyla kullanılmaktadır.
 
 ### 6.1 Kayıt oluşturma
 
@@ -145,7 +151,7 @@ Aşağıdaki altı adımın tamamı aynı `sample_training` database'i üzerinde
 - **Görsel veya terminal çıktısı:** `docs/screenshots/31-backup-taken.png`
 - **Kullanılan yöntem ve komutlar (3 komut, sırasıyla, proje kökünden):**
 
-MongoDB Database Tools `mongodump` kullanılmıştır. Backup işlemi doğrudan aşağıdaki script ile de çalıştırılabilir:
+MongoDB Database Tools `mongodump` kullanılmıştır. Manuel uçtan uca testinde backup işlemi aşağıdaki yöntemle gerçekleştirilmiştir:
 
 ```powershell
 New-Item -ItemType Directory -Path ".\backups" -Force
@@ -158,10 +164,12 @@ $atlasUri = (Get-Content .\.env | Where-Object { $_ -match '^ATLAS_URI=' }) -rep
   --out=".\backups\sample-training-backup"
 ```
 
-Script, `mongodump` komutunu gerekli parametrelerle çalıştırmaktadır. Manual command chain yalnızca kullanılan yöntemin açıkça gösterilmesi amacıyla verilmiştir.
+Script de aynı `mongodump` yöntemini kullanmaktadır. Bu local backup işlemi yalnızca uçtan uca backup/restore testinin bir parçasıdır.
 
 - **Yedeğin saklandığı konum:** `backups/sample-training-backup`
 - **Açıklama:** Tüm `sample_training` database'i yedeklenmiştir. Backup çıktısında `sample_training.records` için 1 document ve `sample_training.github_repositories` için 1 document yedeklendiği görülmektedir.
+
+Production ortamındaki otomatik backup'lar ise local `backups/` dizininde değil, Amazon S3 üzerinde timestamp'li archive dosyaları olarak saklanmaktadır. Bu yapı 7.7'de gösterilmektedir.
 
 ### 6.3 Collection veya veritabanının silinmesi
 
@@ -172,13 +180,13 @@ Script, `mongodump` komutunu gerekli parametrelerle çalıştırmaktadır. Manua
 
 - **Arayüz görseli:** `docs/screenshots/33-data-missing-after-drop-ui.png`
 - **Veritabanı çıktısı:** `docs/screenshots/34-data-missing-after-drop-database.png`
-- **Açıklama:**  Database silindikten sonra uygulamanın `/records` ekranında kayıtların artık görüntülenmediği ve MongoDB Atlas üzerinde `sample_training` database'inin bulunmadığı doğrulanmıştır.
+- **Açıklama:** Database silindikten sonra uygulamanın `/records` ekranında kayıtların artık görüntülenmediği ve MongoDB Atlas üzerinde `sample_training` database'inin bulunmadığı doğrulanmıştır.
 
 ### 6.5 Yedekten geri yükleme
 
 - **Görsel veya terminal çıktısı:** `docs/screenshots/35-restore-executed.png`
 - **Ölçülen geri yükleme süresi:** Restore komutu yaklaşık 1.3 saniye içerisinde tamamlanmıştır. Bu değer yalnızca restore komutunun çalışma süresini göstermektedir; uçtan uca production RTO olarak değerlendirilmemiştir.
-- **Açıklama:** `mongorestore` kullanılarak `sample_training` database'i backup'tan geri yüklenmiştir. Restore sonucunda toplam 2 document başarıyla geri yüklenmiş ve 0 document restore hatası alınmıştır.
+- **Açıklama:** `mongorestore` kullanılarak `sample_training` database'i manuel uçtan uca testinde alınan backup'tan geri yüklenmiştir. Restore sonucunda toplam 2 document başarıyla geri yüklenmiş ve 0 document restore hatası alınmıştır.
 
 ### 6.6 Verinin geri geldiğinin doğrulanması
 
@@ -187,7 +195,9 @@ Script, `mongodump` komutunu gerekli parametrelerle çalıştırmaktadır. Manua
 - **Veritabanı çıktısı (2):** `docs/screenshots/38-data-restored-verified-database-02.png`
 - **Açıklama:** Restore işleminden sonra `sample_training.records` ve `sample_training.github_repositories` collection'larının yeniden oluşturulduğu ve önceki verilerin MongoDB Atlas ile web arayüzünde tekrar erişilebilir olduğu doğrulanmıştır.
 
-> Runbook, RPO/RTO hedefleri ve retention süresi `docs/backup-restore.md` içinde dokümante edilmiştir.
+> Runbook, RPO/RTO hedefleri, backup schedule ve retention sınırlamaları `docs/backup-restore.md` içinde dokümante edilmiştir.
+
+---
 
 ## 7. Logging, Monitoring ve Üst Kriterler
 
@@ -231,26 +241,43 @@ Uygulanan logging, monitoring, alarm, güvenlik ve diğer üst kriterlere ait ka
 - **Trivy container security scan görseli:** `docs/screenshots/46-trivy-security-scan.png`
 - **Açıklama:** Frontend, backend ve Python ETL container image'ları GitHub Actions CI pipeline'ının bir parçası olarak Trivy kullanılarak taranmaktadır. Tarama kapsamında OS paketleri, uygulama dependency'leri ve image içerisinde bulunabilecek secret bilgiler kontrol edilmektedir. Tarama sonuçları GitHub Actions loglarında raporlanmakta ve mevcut case yapılandırmasında vulnerability bulguları deployment'ı otomatik olarak engellememektedir.
 
-### 7.5 ETL Logging
+### 7.5 Üst Kriter #7 - İleri Felaket Kurtarma: Off-Cluster Scheduled Backup
+
+- **Otomatik backup ve S3 kanıtı:** `docs/screenshots/47-backup-cronjob-scheduled-success.png`
+- **Açıklama:** MongoDB Atlas verilerinin cluster dışında tutulmasını sağlayan otomatik backup mekanizması AWS EKS üzerinde `mongodb-backup` Kubernetes CronJob ile çalışmaktadır. CronJob `0 2 * * *` schedule'ı (Saat 02.00'de) ve `Europe/Istanbul` timezone'u ile günlük olarak çalışacak şekilde yapılandırılmıştır.
+
+  Backup workload'u `mongodump` ile `sample_training` database'ini `.archive.gz` formatında yedeklemekte ve timestamp'li arşiv dosyasını Amazon S3 üzerindeki `sample_training/` prefix'ine yüklemektedir.
+
+  Her backup ayrı bir object olarak saklandığından önceki backup'ların üzerine yazılmamaktadır. Backup dosyasının boş olmadığı `test -s` ile kontrol edilmekte, S3 upload sonrasında `aws s3api head-object` ile object'ın başarıyla oluşturulduğu doğrulanmaktadır.
+
+  Backup workload'u ayrı `s3-backup` ServiceAccount kullanmakta ve gerekli S3 erişimi least-privilege IAM policy ile sınırlandırılmaktadır. Backup container'ları ayrıca non-root ve privilege escalation kapalı şekilde çalıştırılmaktadır.
+
+  Otomatik backup'ın gerçek scheduled Job üzerinden başarıyla çalıştığı ve backup çıktısının S3'e gönderildiği `docs/screenshots/47-backup-cronjob-scheduled-success.png` kanıtı ile gösterilmektedir.
+
+  Bu mekanizma case kapsamındaki manuel uçtan uca backup/restore testinden ayrıdır. Manuel test, backup'ın geri yüklenebilir olduğunu doğrularken; bu otomatik mekanizma düzenli ve cluster dışı backup storage gereksinimini karşılamaktadır.
+
+  Bu case kapsamında S3 Lifecycle tabanlı otomatik retention/silme politikası, PITR, otomatik restore verification ve periyodik tam DR drill uygulanmamıştır. Mevcut backup schedule, storage yaklaşımı, restore yöntemi, RPO/RTO değerlendirmesi ve sınırlamalar `docs/backup-restore.md` içerisinde detaylandırılmıştır.
+
+### 7.6 ETL Logging
 
 - **ETL log görseli:** `docs/screenshots/21-etl-update-without-duplicate.png`
 - **Açıklama:** Kubernetes üzerinde çalışan ETL CronJob'un logları GitHub repository'sinin alınmasını, MongoDB bağlantısını, mevcut repository'nin `github_id` kullanılarak güncellenmesini, document count kontrolünü ve ETL işleminin başarıyla tamamlanmasını göstermektedir.
 
-### 7.6 ETL Scheduling
-- **EKS CronJob schedule görseli:** `docs/screenshots/47-eks-cronjob-schedule.png`
+### 7.7 ETL Scheduling
+- **EKS CronJob schedule görseli:** `docs/screenshots/48-eks-cronjob-schedule.png`
 - **Açıklama:** EKS üzerinde çalışan `etl` CronJob'un saatlik çalışmak üzere `0 * * * *` schedule'ını ve `Europe/Istanbul` timezone'unu kullandığı gösterilmektedir.
 
 ## 8. Ek Kanıtlar
 
 ### 8.1 Kubernetes Güvenlik Sertleştirmesi
 
-- **Backend non-root kanıtı:** `docs/screenshots/48-backend-non-root-kubernetes.png`
-- **Frontend non-root kanıtı:** `docs/screenshots/49-frontend-non-root-kubernetes.png`
-- **ETL non-root kanıtı:** `docs/screenshots/50-etl-non-root-kubernetes.png`
+- **Backend non-root kanıtı:** `docs/screenshots/49-backend-non-root-kubernetes.png`
+- **Frontend non-root kanıtı:** `docs/screenshots/50-frontend-non-root-kubernetes.png`
+- **ETL non-root kanıtı:** `docs/screenshots/51-etl-non-root-kubernetes.png`
 - **Açıklama:** Kubernetes workload'larının root kullanıcıyla çalışmadığı doğrulanmıştır. Backend `node` (UID 1000), frontend `nginx` (UID 101) ve ETL `appuser` (UID 10001) olarak çalışmaktadır. Ayrıca `allowPrivilegeEscalation` devre dışı bırakılmış ve tüm Linux capabilities drop edilmiştir.
 
 ### 8.2 AWS / EKS Deployment Yapılandırması
 
-- **EKS cluster ve node durumu:** `docs/screenshots/51-eks-cluster-config.png`
-- **EKS managed node group yapılandırması:** `docs/screenshots/52-eks-node-group-config.png`
+- **EKS cluster ve node durumu:** `docs/screenshots/52-eks-cluster-config.png`
+- **EKS managed node group yapılandırması:** `docs/screenshots/53-eks-node-group-config.png`
 - **Açıklama:** `devops-case-eks` EKS cluster'ının `eu-central-1` region'ında çalıştığı ve `Ready` durumunda bir worker node'a sahip olduğu gösterilmektedir. Çalışan node Kubernetes `v1.36.3` ve Amazon Linux 2023 kullanmaktadır. EKS managed node group'u `devops-workers` adıyla ve `t3.small` instance type'ı kullanılarak 1 adet desired node ile yapılandırılmıştır. Cluster ve node group yapılandırması repository içerisindeki `eks-cluster.yaml` dosyasında tanımlanmıştır. Kubernetes workload'larının ortam bazlı yapılandırması Kustomize overlay'leri ile yönetilmekte ve production deployment `k8s/overlays/prod` üzerinden gerçekleştirilmektedir.

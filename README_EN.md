@@ -20,6 +20,8 @@ DevOps_Case_Final/
 │   ├── eks/                               # Shared EKS Kubernetes resources
 │   │   ├── backend-deployment.yaml        # EKS backend Deployment
 │   │   ├── backend-service.yaml           # EKS backend ClusterIP Service
+│   │   ├── backup-cronjob.yaml            # Daily MongoDB → S3 backup CronJob
+│   │   ├── backup-serviceaccount.yaml     # Backup workload ServiceAccount
 │   │   ├── cd-rbac.yaml                   # GitHub Actions Kubernetes RBAC
 │   │   ├── etl-cronjob.yaml               # EKS hourly Python ETL CronJob
 │   │   ├── frontend-deployment.yaml       # EKS frontend Deployment
@@ -165,6 +167,28 @@ React      Node.js
 
 The Python ETL runs as a separate workflow, retrieving repository information from the GitHub API and updating the `github_repositories` collection in MongoDB.
 
+```text
+GitHub API
+    ↓
+Python ETL
+    ↓
+MongoDB Atlas
+```
+
+Also, a backup of MongoDB Atlas data is taken daily and automatically:
+
+```text
+MongoDB Atlas
+      ↓
+mongodb-backup CronJob
+      ↓
+mongodump
+      ↓
+.archive.gz
+      ↓
+Amazon S3
+```
+
 In the local Kubernetes environment, the application can be accessed through the local Envoy Gateway instead of the AWS Elastic Load Balancer.
 
 Detailed architecture diagram and component descriptions:
@@ -182,6 +206,7 @@ Detailed architecture diagram and component descriptions:
 - Kustomize
 - AWS EKS
 - Amazon ECR
+- Amazon S3
 - AWS IAM
 - GitHub Actions
 - GitHub OIDC
@@ -189,7 +214,6 @@ Detailed architecture diagram and component descriptions:
 - Kubernetes RBAC
 - Envoy Gateway
 - Helm
-- Kind
 
 > Helm is used for installing Kubernetes dependencies such as Envoy Gateway. The application's own Kubernetes resources are managed using Kustomize.
 
@@ -202,7 +226,7 @@ To use the existing deployment running on AWS, the following are required:
 
 For local execution or development, the following can additionally be used:
 
-- Docker Desktop
+- Docker Desktop (Kubernetes enabled)
 - Docker Compose
 - Node.js 20+
 - Python 3.10+
@@ -476,6 +500,7 @@ The AWS EKS deployment runs the frontend, backend, and Python ETL workloads on K
 Frontend → Deployment + ClusterIP Service + liveness/readiness probes
 Backend  → Deployment + ClusterIP Service + liveness/readiness probes + controlled RollingUpdate
 ETL      → CronJob
+Backup   → Günlük CronJob → mongodump → Amazon S3
 Gateway  → Envoy Gateway
 Routing  → HTTPRoute
 ```
@@ -771,9 +796,56 @@ This allows the deployed image version to be directly associated with the corres
 
 ## Backup and Restore
 
-MongoDB backup is performed using `mongodump`, while restore is performed using `mongorestore`.
+MongoDB Atlas data is automatically backed up in the production environment using a daily Kubernetes CronJob running on AWS EKS.
 
-Backup and restore operations can also be executed using the following PowerShell script included in the repository:
+Automatic backup flow:
+
+```text
+MongoDB Atlas
+      ↓
+EKS mongodb-backup CronJob
+      ↓
+mongodump
+      ↓
+.archive.gz
+      ↓
+Amazon S3
+sample_training/
+```
+
+Backup schedule:
+
+```text
+0 2 * * *
+```
+
+Timezone:
+
+```text
+Europe/Istanbul
+```
+
+Backup files are created as separate archive files with UTC timestamps.
+
+Example:
+
+```text
+sample_training_20260912T230006Z.archive.gz
+```
+
+Backups are stored outside the cluster in Amazon S3:
+
+```text
+s3://devops-case-baykar-backups-203309795174/sample_training/
+```
+
+The backup archive is checked to ensure that it is not empty, and the uploaded S3 object is verified using `aws s3api head-object`.
+
+The backup workload uses a dedicated `s3-backup` ServiceAccount, and the required S3 access is restricted through a least-privilege IAM policy. The backup containers run as non-root users with privilege escalation disabled.
+
+S3 Lifecycle-based automatic retention/deletion, PITR, automated restore verification, and periodic full DR drills have not been implemented as part of this case.
+
+To verify backup restorability end-to-end, the PowerShell script included in the repository can also be used. This manual test is separate from the automated S3 backup mechanism used in production:
 
 ```powershell
 .\scripts\backup-restore.ps1 -Action Backup
@@ -787,25 +859,15 @@ To restore over existing collections:
 .\scripts\backup-restore.ps1 -Action Restore -DropExisting
 ```
 
-Backup location (not included in the repository because it is excluded by `.gitignore`):
+Local backup location used during the manual E2E test:
 
 ```text
 backups/sample-training-backup/
 ```
 
-The backup and restore process has been tested end-to-end using real data. The backup and `-DropExisting` restore scenarios using the `scripts/backup-restore.ps1` script in the repository have also been successfully tested.
+This directory is excluded from the repository through `.gitignore`.
 
-Detailed commands, script usage, retention, RPO/RTO, and production limitations:
-
-`docs/backup-restore.md`
-
-Backup/restore script:
-
-`scripts/backup-restore.ps1`
-
-Evidence:
-
-`SUBMISSION_EVIDENCE.md`
+The backup and restore process was tested end-to-end using real data. During the test, a record was created, a backup was taken, the database was deleted, the data loss was verified, and the data was restored using `mongorestore`. After the restore, the data was verified to be accessible again through both MongoDB Atlas and the web interface.
 
 ## Logging and Alerts
 
@@ -850,6 +912,7 @@ Main improvements include:
 - Namespace-scoped Kubernetes RBAC
 - Kustomize environment management
 - Container image, dependency, and secret scanning with Trivy
+- Automated MongoDB backup to Amazon S3
 
 ## Rollback
 

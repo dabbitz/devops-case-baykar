@@ -12,7 +12,9 @@ Python ETL, GitHub API üzerinden repository bilgilerini almakta ve `github_id` 
 
 CI/CD GitHub Actions üzerinden çalışır. CI aşamasında frontend, backend ve Python ETL container image'ları Trivy ile OS package vulnerabilities, application dependencies ve embedded secrets açısından taranır. `main` branch'ine yapılan başarılı push sonrasında GitHub OIDC ile AWS IAM Role alınır, image'lar Amazon ECR'a gönderilir ve AWS EKS'e deploy edilir.
 
-Yerel Docker Desktop Kubernetes ortamı ise geliştirme ve doğrulama amacıyla korunmuştur.
+Yerel Docker Desktop Kubernetes ortamı geliştirme ve doğrulama amacıyla korunmuştur.
+
+MongoDB Atlas verileri ayrıca AWS EKS üzerinde çalışan günlük bir Kubernetes CronJob ile `mongodump` kullanılarak alınmakta ve Amazon S3'te timestamp'li arşiv dosyaları olarak saklanmaktadır.
 
 ---
 
@@ -40,13 +42,17 @@ flowchart TB
     Mongo[("MongoDB Atlas<br/>sample_training")]
 
     User --> LB
+
     LB --> Gateway
+
     Gateway --> Route
 
     Route --> FrontendSvc
+
     FrontendSvc --> Frontend
 
     Frontend -->|"API requests /api/*"| BackendSvc
+
     BackendSvc --> Backend
 
     Backend -->|"CRUD"| Mongo
@@ -58,6 +64,17 @@ flowchart TB
     end
 
     ETLJob -->|"insert / update<br/>github_id"| Mongo
+
+    subgraph Backup["MongoDB Backup - Kubernetes CronJob"]
+        BackupJob["mongodb-backup<br/>Her gün 02:00 Avrupa/İstanbul"]
+        Dump["mongodump<br/>.archive.gz"]
+        S3["Amazon S3<br/>sample_training/"]
+
+        BackupJob --> Dump
+        Dump --> S3
+    end
+
+    Mongo -->|"backup"| BackupJob
 ```
 
 ---
@@ -70,17 +87,21 @@ Frontend React ile geliştirilmiş ve production container içerisinde NGINX tar
 
 Görevleri:
 
-- Kullanıcı arayüzünü sunmak
-- Record oluşturma ve güncelleme işlemlerini başlatmak
-- Backend API'lerine HTTP istekleri göndermek
+* Kullanıcı arayüzünü sunmak
+* Record oluşturma ve güncelleme işlemlerini başlatmak
+* Backend API'lerine HTTP istekleri göndermek
 
 Frontend Kubernetes üzerinde:
 
 ```text
 frontend Deployment
+
         ↓
+
 frontend-service
+
         ↓
+
 React + NGINX
 ```
 
@@ -98,19 +119,23 @@ Backend Node.js ve Express kullanmaktadır.
 
 Başlıca görevleri:
 
-- REST API sağlamak
-- Record CRUD işlemlerini gerçekleştirmek
-- Input ve ObjectId validation yapmak
-- MongoDB ile iletişim kurmak
-- Healthcheck endpoint'i sağlamak
+* REST API sağlamak
+* Record CRUD işlemlerini gerçekleştirmek
+* Input ve ObjectId validation yapmak
+* MongoDB ile iletişim kurmak
+* Healthcheck endpoint'i sağlamak
 
 Backend Kubernetes üzerinde:
 
 ```text
 backend Deployment
+
         ↓
+
 backend-service
+
         ↓
+
 Node.js / Express
 ```
 
@@ -136,6 +161,7 @@ Başlıca collection'lar:
 
 ```text
 records
+
 github_repositories
 ```
 
@@ -155,13 +181,21 @@ Akış:
 
 ```text
 Kubernetes CronJob
+
         ↓
+
 Python ETL
+
         ↓
+
 GitHub API
+
         ↓
+
 Repository data
+
         ↓
+
 MongoDB Atlas
 ```
 
@@ -187,23 +221,41 @@ AWS EKS üzerindeki normal kullanıcı trafiği:
 
 ```text
 Browser
+
    ↓
+
 AWS Elastic Load Balancer
+
    ↓
+
 Envoy Gateway
+
    ↓
+
 HTTPRoute
+
    ↓
+
 frontend-service
+
    ↓
+
 React / NGINX
+
    ↓
+
 /api/*
+
    ↓
+
 backend-service
+
    ↓
+
 Node.js / Express
+
    ↓
+
 MongoDB Atlas
 ```
 
@@ -225,15 +277,25 @@ ETL veri akışı web request akışından bağımsızdır:
 
 ```text
 Kubernetes CronJob
+
         ↓
+
 Python ETL
+
         ↓
+
 GitHub API
+
         ↓
+
 Repository JSON
+
         ↓
+
 MongoDB Atlas
+
         ↓
+
 github_repositories
 ```
 
@@ -253,19 +315,19 @@ Aynı repository tekrar işlendiğinde yeni bir document oluşturulmaz; mevcut d
 
 AWS EKS ortamında kullanılan temel kaynaklar:
 
-| Kaynak              | Görev                                                     |
-| ------------------- | --------------------------------------------------------- |
-| Namespace           | Uygulama kaynaklarını izole etmek                         |
-| Backend Deployment  | Node.js/Express backend çalıştırmak                       |
-| Backend Service     | Backend'e cluster içi erişim sağlamak                     |
-| Frontend Deployment | React/NGINX frontend çalıştırmak                          |
-| Frontend Service    | Frontend'e cluster içi erişim sağlamak                    |
-| ETL CronJob         | Saatlik Python ETL çalıştırmak                            |
-| Secret              | Credential ve bağlantı bilgilerini workload'lara aktarmak |
-| Gateway             | Dış HTTP erişim noktası sağlamak                          |
-| HTTPRoute           | HTTP trafiğini Service'lere yönlendirmek                  |
-| Gateway             | Dış HTTP erişim noktası sağlamak                          |
-| HTTPRoute           | HTTP trafiğini Service'lere yönlendirmek                  |
+| Kaynak                 | Görev                                                     |
+| ---------------------- | --------------------------------------------------------- |
+| Namespace              | Uygulama kaynaklarını izole etmek                         |
+| Backend Deployment     | Node.js/Express backend çalıştırmak                       |
+| Backend Service        | Backend'e cluster içi erişim sağlamak                     |
+| Frontend Deployment    | React/NGINX frontend çalıştırmak                          |
+| Frontend Service       | Frontend'e cluster içi erişim sağlamak                    |
+| ETL CronJob            | Saatlik Python ETL çalıştırmak                            |
+| MongoDB Backup CronJob | MongoDB verisini günlük olarak S3'e yedeklemek            |
+| Backup ServiceAccount  | Backup workload'unun AWS/S3 erişimini sağlamak            |
+| Secret                 | Credential ve bağlantı bilgilerini workload'lara aktarmak |
+| Gateway                | Dış HTTP erişim noktası sağlamak                          |
+| HTTPRoute              | HTTP trafiğini Service'lere yönlendirmek                  |
 
 Frontend ve backend stateless `Deployment` olarak çalıştırılmaktadır.
 
@@ -281,11 +343,15 @@ AWS EKS uygulama kaynakları Kustomize ile yönetilmektedir:
 
 ```text
 k8s/eks/              → ortak base
+
         ↓
+
 overlays/dev/
 overlays/test/
 overlays/prod/
+
         ↓
+
 Environment-specific configuration
 ```
 
@@ -343,6 +409,8 @@ MONGODB_URI
 Local Kubernetes deployment'ında `setup-k8s.ps1` `.env` değerlerinden Secret kaynaklarını oluşturur.
 
 AWS EKS deployment'ında GitHub Actions Secrets kullanılarak Kubernetes Secret kaynakları güncellenir.
+
+`MONGODB_URI` backup CronJob tarafından da Kubernetes Secret üzerinden alınmaktadır; MongoDB bağlantı bilgileri manifest içerisinde açık olarak tutulmamaktadır.
 
 Gerçek credential, token veya private key repository içerisinde tutulmamaktadır.
 
@@ -469,7 +537,6 @@ Deployment job'ı:
 - Deployment image'larını commit SHA ile günceller.
 - Rollout ve dış erişim kontrollerini gerçekleştirir.
 - Gateway ve HTTPRoute kaynaklarını uygular.
-- Rollout ve dış erişim kontrollerini gerçekleştirir.
 
 CI validation başarısız olursa deployment job'ı çalıştırılmaz.
 
@@ -588,23 +655,89 @@ k8s/eks/cd-rbac.yaml
 
 MongoDB, uygulamanın kalıcı veri katmanıdır ve MongoDB Atlas üzerinde tutulmaktadır.
 
-Backup:
+### 15.1 Otomatik Backup
+
+Production ortamında MongoDB backup işlemi AWS EKS üzerinde çalışan `mongodb-backup` Kubernetes CronJob ile günlük olarak otomatikleştirilmiştir.
+
+Backup akışı:
 
 ```text
 MongoDB Atlas
       ↓
+EKS CronJob
+mongodb-backup
+      ↓
 mongodump
       ↓
-backups/sample-training-backup/
+.archive.gz
+      ↓
+Amazon S3
+sample_training/
 ```
 
-Backup işlemi repository içerisindeki `scripts/backup-restore.ps1` script'i ile de tekrarlanabilir:
+CronJob schedule:
+
+```text
+0 2 * * *
+```
+
+Timezone:
+
+```text
+Europe/Istanbul
+```
+
+Backup dosyaları UTC timestamp içeren ayrı birer arşiv dosyaları olarak oluşturulmaktadır.
+
+Örnek:
+
+```text
+sample_training_20260912T230006Z.archive.gz
+```
+
+Buradaki `Z`, dosya adındaki timestamp'in UTC olduğunu belirtmektedir.
+
+Backup workload'u ayrı bir ServiceAccount kullanmaktadır:
+
+```text
+s3-backup
+```
+
+MongoDB bağlantı bilgisi Kubernetes Secret üzerinden alınmaktadır. Backup container'ları root olmayan kullanıcılarla çalıştırılmakta ve `allowPrivilegeEscalation: false` ile `capabilities.drop: ALL` gibi container security ayarları uygulanmaktadır.
+
+Backup arşivi oluşturulduktan sonra dosyanın boş olmadığı `test -s` ile kontrol edilmektedir. S3 upload işleminin ardından `aws s3api head-object` ile object'ın S3 üzerinde başarıyla oluşturulduğu doğrulanmaktadır.
+
+Backup'lar Amazon S3 üzerinde cluster dışında saklanmaktadır:
+
+```text
+s3://devops-case-baykar-backups-203309795174/sample_training/
+```
+
+S3 erişimi backup workload'u için ayrı IAM yetkileri ile sınırlandırılmıştır. Backup policy yalnızca gerekli S3 bucket ve `sample_training/` prefix'i üzerindeki işlemlere izin vermektedir.
+
+Kubernetes CronJob geçmişinde başarılı ve başarısız Job'lar için sınırlı history tutulmaktadır. Bu ayar S3 object retention policy'sinden bağımsızdır.
+
+Bu case kapsamında S3 üzerinde otomatik Lifecycle tabanlı object retention/silme politikası uygulanmamıştır.
+
+### 15.2 Manuel Local Backup ve Restore
+
+Otomatik production backup mekanizmasına ek olarak backup ve restore akışı manuel olarak local ortamda da test edilebilmektedir.
+
+Repository içerisinde bu amaçla kullanılan script:
 
 ```powershell
 .\scripts\backup-restore.ps1 -Action Backup
 ```
 
-Restore:
+Backup dosyaları local test sürecinde:
+
+```text
+backups/sample-training-backup/
+```
+
+altında oluşturulabilmektedir.
+
+Restore işlemi:
 
 ```text
 Backup files
@@ -616,16 +749,25 @@ MongoDB Atlas
 Database / UI verification
 ```
 
-Restore işlemi script üzerinden de çalıştırılabilir:
+Script üzerinden restore:
 
 ```powershell
 .\scripts\backup-restore.ps1 -Action Restore
+```
+
+Mevcut verinin silinerek restore edilmesi:
+
+```powershell
 .\scripts\backup-restore.ps1 -Action Restore -DropExisting
 ```
 
-Backup ve restore süreci gerçek veri üzerinde uçtan uca test edilmiştir. `-Action Backup` ve `-Action Restore -DropExisting` senaryoları da başarıyla test edilmiştir.
+Backup ve restore süreci gerçek veri üzerinde uçtan uca test edilmiştir. Test sırasında kayıt oluşturulmuş, backup alınmış, veri silinmiş, silinen verinin UI ve database üzerinden kaybolduğu doğrulanmış ve ardından `mongorestore` ile veri geri yüklenmiştir.
 
-Mevcut case ortamında otomatik backup sıklığı ve retention policy uygulanmamıştır. Backup yöntemi, restore adımları, RPO/RTO ve production sınırlamaları:
+Restore sonrasında database ve uygulama UI üzerinden verinin tekrar erişilebilir olduğu doğrulanmıştır.
+
+Test sırasında `mongorestore` komutunun yaklaşık 1.3 saniyelik bir çalışma süresi ölçülmüştür. Bu değer tam bir production RTO ölçümü değildir; yalnızca restore komutunun gözlemlenen çalışma süresidir.
+
+Backup yöntemi, restore adımları, doğrulama sonuçları, RPO/RTO değerlendirmesi ve mevcut production sınırlamaları:
 
 ```text
 docs/backup-restore.md
@@ -686,6 +828,12 @@ AWS Load Balancer
 Amazon ECR
     → Container image registry
 
+Amazon S3
+    → Off-cluster MongoDB backup storage
+
+Kubernetes Backup CronJob
+    → Scheduled MongoDB backup
+
 GitHub Actions
     → CI/CD automation
 
@@ -696,4 +844,4 @@ GitHub OIDC + AWS IAM
     → Cloud authentication
 ```
 
-Bu ayrıştırma sayesinde frontend, backend ve ETL bağımsız container image'ları ve Kubernetes workload'ları olarak yönetilebilmekte; CI/CD üzerinden source commit ile ilişkilendirilmiş image'lar AWS EKS'e otomatik olarak deploy edilebilmektedir.
+Bu ayrıştırma sayesinde frontend, backend ve ETL bağımsız container image'ları ve Kubernetes workload'ları olarak yönetilebilmekte; CI/CD üzerinden source commit ile ilişkilendirilmiş image'lar AWS EKS'e otomatik olarak deploy edilebilmekte ve MongoDB verileri günlük olarak cluster dışındaki Amazon S3 storage'a yedeklenebilmektedir.

@@ -20,6 +20,8 @@ DevOps_Case_Final/
 │   ├── eks/                               # EKS ortak Kubernetes kaynakları
 │   │   ├── backend-deployment.yaml        # EKS backend Deployment
 │   │   ├── backend-service.yaml           # EKS backend ClusterIP Service
+│   │   ├── backup-cronjob.yaml            # Günlük MongoDB → S3 backup CronJob
+│   │   ├── backup-serviceaccount.yaml     # Backup workload ServiceAccount
 │   │   ├── cd-rbac.yaml                   # GitHub Actions Kubernetes RBAC
 │   │   ├── etl-cronjob.yaml               # EKS saatlik Python ETL CronJob
 │   │   ├── frontend-deployment.yaml       # EKS frontend Deployment
@@ -173,6 +175,20 @@ Python ETL
 MongoDB Atlas
 ```
 
+MongoDB Atlas verileri ayrıca günlük olarak otomatik şekilde yedeklenmektedir:
+
+```text
+MongoDB Atlas
+      ↓
+mongodb-backup CronJob
+      ↓
+mongodump
+      ↓
+.archive.gz
+      ↓
+Amazon S3
+```
+
 Local Kubernetes ortamında AWS Elastic Load Balancer yerine local Envoy Gateway üzerinden erişim sağlanabilir.
 
 Ayrıntılı mimari diyagram ve bileşen açıklamaları:
@@ -190,6 +206,7 @@ Ayrıntılı mimari diyagram ve bileşen açıklamaları:
 - Kustomize
 - AWS EKS
 - Amazon ECR
+- Amazon S3
 - AWS IAM
 - GitHub Actions
 - GitHub OIDC
@@ -197,7 +214,6 @@ Ayrıntılı mimari diyagram ve bileşen açıklamaları:
 - Kubernetes RBAC
 - Envoy Gateway
 - Helm
-- Kind
 
 > Helm bu projede uygulama workload'larını paketlemek için değil, Envoy Gateway gibi Kubernetes bağımlılıklarını kurmak için kullanılmaktadır. Uygulamanın kendi Kubernetes kaynakları Kustomize ile yönetilmektedir.
 
@@ -212,7 +228,7 @@ gereklidir.
 
 Local çalıştırma veya geliştirme için ayrıca:
 
-- Docker Desktop
+- Docker Desktop (Kubernetes açık)
 - Docker Compose
 - Node.js 20+
 - Python 3.10+
@@ -494,6 +510,7 @@ AWS EKS deployment'ında frontend, backend ve Python ETL workload'ları Kubernet
 Frontend → Deployment + ClusterIP Service + liveness/readiness probes
 Backend  → Deployment + ClusterIP Service + liveness/readiness probes + controlled RollingUpdate
 ETL      → CronJob
+Backup   → Daily CronJob → mongodump → Amazon S3
 Gateway  → Envoy Gateway
 Routing  → HTTPRoute
 ```
@@ -593,7 +610,7 @@ ETL `Europe/Istanbul` timezone'u kullanarak saatlik çalışmaktadır.
 
 ETL aynı repository tekrar işlendiğinde `github_id` alanını kullanarak mevcut kaydı günceller.
 
-## Kubernetes Security
+## Kubernetes Güvenliği
 
 Container'lar root kullanıcı ile çalıştırılmamaktadır.
 
@@ -621,7 +638,7 @@ Kubernetes workload'larında ayrıca resource requests/limits ve uygulama health
 
 Secret değerleri repository source code'u veya Docker image içerisine gömülmemektedir.
 
-## Container Security Scanning
+## Konteynır Güvenlik Taraması
 
 CI/CD pipeline'ında frontend, backend ve Python ETL container image'ları Trivy kullanılarak taranmaktadır.
 
@@ -639,7 +656,7 @@ Embedded secrets
 
 kontrollerini gerçekleştirmektedir.
 
-Tarama sonuçları GitHub Actions loglarında raporlanmaktadır. Mevcut case yapılandırmasında vulnerability bulguları raporlanmakta, ancak `exit-code: 0` kullanıldığı için bulgular deployment'ı otomatik olarak engellememektedir.
+Tarama sonuçları GitHub Actions log'larında raporlanmaktadır. Mevcut case yapılandırmasında vulnerability bulguları raporlanmakta, ancak `exit-code: 0` kullanıldığı için bulgular deployment'ı otomatik olarak engellememektedir.
 
 Bu kontrol, CI/CD sürecine image, dependency ve secret scanning eklemektedir.
 
@@ -657,7 +674,7 @@ github_id = 1361100555
 
 üzerinden mevcut document güncellenir ve duplicate kayıt oluşturulmaz.
 
-ETL loglarında aşağıdaki gibi kayıtlar görülür:
+ETL log'larında aşağıdaki gibi kayıtlar görülür:
 
 ```text
 UPDATE: repository updated
@@ -799,12 +816,60 @@ Bu yapı deployment edilen image sürümünün ilgili source commit ile doğruda
 
 ## Backup ve Restore
 
-MongoDB backup için `mongodump`, restore için `mongorestore` kullanılmıştır.
+MongoDB Atlas verileri production ortamında AWS EKS üzerinde çalışan günlük bir Kubernetes CronJob ile otomatik olarak yedeklenmektedir.
 
-Backup ve restore işlemleri repository içerisinde bulunan aşağıdaki PowerShell script'i üzerinden de çalıştırılabilir:
+Otomatik backup akışı:
+
+```text
+MongoDB Atlas
+      ↓
+EKS mongodb-backup CronJob
+      ↓
+mongodump
+      ↓
+.archive.gz
+      ↓
+Amazon S3
+sample_training/
+```
+
+Backup schedule:
+
+```text
+0 2 * * *
+```
+
+Timezone:
+
+```text
+Europe/Istanbul
+```
+
+Backup dosyaları UTC timestamp içeren ayrı archive dosyaları olarak oluşturulmaktadır.
+
+Örnek:
+
+```text
+sample_training_20260912T230006Z.archive.gz
+```
+
+Backup'lar Amazon S3 üzerinde cluster dışında saklanmaktadır:
+
+```text
+s3://devops-case-baykar-backups-203309795174/sample_training/
+```
+
+Backup archive'ının boş olmadığı kontrol edilmekte ve S3 upload sonrasında `aws s3api head-object` ile object'ın başarıyla oluşturulduğu doğrulanmaktadır.
+
+Backup workload'u ayrı bir `s3-backup` ServiceAccount kullanmakta ve gerekli S3 erişimi least-privilege IAM policy ile sınırlandırılmaktadır. Backup container'ları non-root kullanıcılarla çalıştırılmakta ve privilege escalation devre dışı bırakılmaktadır.
+
+Bu case kapsamında S3 Lifecycle tabanlı otomatik retention/silme politikası, PITR, otomatik restore verification ve periyodik tam DR drill uygulanmamıştır.
+
+Backup ve restore sürecinin geri yüklenebilirliğini uçtan uca doğrulamak için ayrıca repository içerisinde bulunan PowerShell script'i kullanılabilir. Bu manuel test production'daki otomatik S3 backup mekanizmasından bağımsızdır:
 
 ```powershell
 .\scripts\backup-restore.ps1 -Action Backup
+
 .\scripts\backup-restore.ps1 -Action Restore
 ```
 
@@ -814,31 +879,21 @@ Mevcut collection'ların üzerine restore edilmesi gerektiğinde:
 .\scripts\backup-restore.ps1 -Action Restore -DropExisting
 ```
 
-Backup konumu (repository'de gözükmez çünkü `.gitignore`'dadır):
+Manuel E2E testinde kullanılan local backup konumu:
 
 ```text
 backups/sample-training-backup/
 ```
 
-Backup ve restore süreci gerçek veri üzerinde uçtan uca test edilmiştir. Repository'deki `scripts/backup-restore.ps1` script'i ile backup ve `-DropExisting` restore senaryoları da başarıyla test edilmiştir.
+Bu dizin `.gitignore` tarafından repository dışında tutulmaktadır.
 
-Ayrıntılı komutlar, script kullanımı, retention, RPO/RTO ve production sınırlamaları:
-
-`docs/backup-restore.md`
-
-Backup/restore script'i:
-
-`scripts/backup-restore.ps1`
-
-Çalışma kanıtları:
-
-`TESLIM_KANITLARI.md`
+Backup ve restore süreci gerçek veri üzerinde uçtan uca test edilmiştir. Test sırasında kayıt oluşturulmuş, backup alınmış, database silinmiş, verinin kaybolduğu doğrulanmış ve backup'tan `mongorestore` ile veri geri yüklenmiştir. Restore sonrasında verinin MongoDB Atlas ve web arayüzü üzerinden tekrar erişilebilir olduğu doğrulanmıştır.
 
 ## Logging ve Alerts
 
-Backend ve Python ETL tarafında operasyonel loglar kullanılmaktadır.
+Backend ve Python ETL tarafında operasyonel log'lar kullanılmaktadır.
 
-ETL logları repository bilgisi, MongoDB bağlantısı, update işlemi, document count ve başarılı tamamlanma durumlarını göstermektedir.
+ETL log'ları repository bilgisi, MongoDB bağlantı durumu, update işlemleri, document count ve işlemin başarıyla tamamlandığı bilgisini göstermektedir.
 
 Ayrıca:
 
@@ -848,22 +903,22 @@ scripts/check-alerts.ps1
 
 script'i iki kritik alarm senaryosunu kontrol etmektedir:
 
-- ETL başarısızlığı veya beklenen sürede başarılı ETL çalışmasının bulunmaması
-- Frontend veya backend health endpoint'lerinin erişilememesi
+- ETL işleminin başarısız olması veya beklenen zaman aralığında başarılı bir ETL çalışmasının bulunmaması
+- Frontend veya backend health endpoint'lerine erişilememesi
 
-Test modu ile alarm senaryoları doğrulanabilmektedir.
+Alarm senaryoları test modu kullanılarak doğrulanabilmektedir.
 
 ## Bulgular ve İyileştirmeler
 
-Başlangıç uygulamasındaki production-readiness sorunları:
+Başlangıç uygulamasında tespit edilen production-readiness sorunları:
 
 `docs/findings.md`
 
-dosyasında açıklanmıştır.
+dosyasında dokümante edilmiştir.
 
 Başlıca iyileştirmeler:
 
-- Frontend API adresinin environment/config üzerinden yönetilmesi
+- Frontend API adresinin environment/configuration üzerinden yönetilmesi
 - Backend input validation
 - ObjectId validation
 - Database connection error handling
@@ -872,13 +927,14 @@ Başlıca iyileştirmeler:
 - Non-root container kullanımı
 - Kubernetes securityContext
 - ETL duplicate prevention
-- CI/CD validation ve deployment kontrolü
+- CI/CD validation ve deployment kontrolleri
 - AWS EKS deployment
-- Amazon ECR image management
+- Amazon ECR image yönetimi
 - GitHub OIDC authentication
 - Namespace-scoped Kubernetes RBAC
 - Kustomize environment management
 - Trivy ile container image, dependency ve secret scanning
+- MongoDB'nin Amazon S3'e otomatik olarak yedeklenmesi
 
 ## Rollback
 

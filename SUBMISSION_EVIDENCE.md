@@ -49,10 +49,10 @@ Screenshots must not expose real credentials, tokens, passwords, private keys, o
 - **ECR images (ETL):** `docs/screenshots/17-ecr-images-etl.png`
 - **Health check and resource definitions (backend):** `docs/screenshots/39-eks-healthchecks-resources-backend.png`
 - **Health check and resource definitions (frontend):** `docs/screenshots/40-eks-healthchecks-resources-frontend.png`
-- **Health check and resource definitions (etl):** `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
+- **Health check and resource definitions (ETL):** `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
 - **Explanation:** The application has been deployed to the `devops-case-eks` cluster on AWS EKS. The backend and frontend Deployments, Service resources, and the Python ETL CronJob are running on EKS. Container images are pulled from Amazon ECR.
 
-Liveness/readiness probes are defined for the Kubernetes backend and frontend Deployments. The `/healthcheck/` endpoint is used for the backend, while `/` is used for the frontend. CPU and memory resource requests/limits are defined for the backend, frontend, and ETL workloads. The backend Deployment is configured with `maxSurge: 1` and `maxUnavailable: 0` (detailed in Section 7.1).
+Liveness/readiness probes are defined for the Kubernetes backend and frontend Deployments. The `/healthcheck/` endpoint is used for the backend, while `/` is used for the frontend. CPU and memory resource requests/limits are defined for the backend, frontend, and ETL workloads. The backend Deployment is configured with `maxSurge: 1` and `maxUnavailable: 0` (detailed in Section 7.2).
 
 ### 3.3 Cloud external access
 
@@ -113,10 +113,16 @@ Show that processing the same repository again did not create a duplicate and in
 
 All six steps below must be evidenced. It must be clear that the steps were performed in order and on the same record.
 
+The steps in Sections 6.1–6.6 represent the **manual end-to-end backup and restore test** performed against real application data.
+
+The regular production backup mechanism is separate and is shown under **Section 7.7 - Advanced Criteria #7**, where the automated EKS CronJob → Amazon S3 backup flow is evidenced.
+
+The following six steps were performed in order on the same `sample_training` database.
+
 ### 6.0 Backup/Restore Script
 
 - **Script:** `scripts/backup-restore.ps1`
-- **Explanation:** Backup and restore operations can be executed reproducibly using the PowerShell script included in the repository. The `-Action Backup` and `-Action Restore -DropExisting` scenarios have been successfully tested. The manual command chain beginning in Section 6.1 is provided to clearly document the MongoDB backup method used.
+- **Explanation:** Backup and restore operations can be executed reproducibly using the PowerShell script included in the repository. The `-Action Backup` and `-Action Restore -DropExisting` scenarios have been successfully tested.
 
 ```powershell
 .\scripts\backup-restore.ps1 -Action Backup
@@ -130,7 +136,9 @@ To restore over existing collections:
 .\scripts\backup-restore.ps1 -Action Restore -DropExisting
 ```
 
-The script does not contain any real credentials; it reads the MongoDB connection string from the `ATLAS_URI` value in the local `.env` file. Backup output is created under `backups/` and excluded from the repository through `.gitignore`.
+The script does not contain any real credentials; it reads the MongoDB connection string from the `ATLAS_URI` value in the local `.env` file.
+
+This script is used for the **manual backup/restore end-to-end test** and is separate from the daily automated S3 backup mechanism used for the production deployment.
 
 ### 6.1 Record creation
 
@@ -138,12 +146,12 @@ The script does not contain any real credentials; it reads the MongoDB connectio
 - **Screenshot 2:** `docs/screenshots/30-backup-record-created-02.png`
 - **Explanation:** Before the backup scenario was started, the application data was verified to be present. The `sample_training` database and its relevant collections were displayed in MongoDB Atlas. The backup scenario contained a total of 2 documents: 1 document in the `records` collection and 1 document in the `github_repositories` collection.
 
-### 6.2 Taking the backup
+### 6.2 Taking the (manual) backup
 
 - **Screenshot or terminal output:** `docs/screenshots/31-backup-taken.png`
-- **Method and command(s) used (3 commands, executed sequentially from the project root):**
+- **Method and commands used (3 commands, executed sequentially from the project root):**
 
-MongoDB Database Tools `mongodump` was used. The backup can also be performed directly using the following script:
+MongoDB Database Tools `mongodump` was used. The manual end-to-end test backup was performed using the following method:
 
 ```powershell
 New-Item -ItemType Directory -Path ".\backups" -Force
@@ -156,10 +164,12 @@ $atlasUri = (Get-Content .\.env | Where-Object { $_ -match '^ATLAS_URI=' }) -rep
   --out=".\backups\sample-training-backup"
 ```
 
-The script runs the `mongodump` command with the required parameters. The manual command chain is provided only to clearly document the method used.
+The script uses the same `mongodump` method. This local backup operation is only part of the end-to-end backup/restore test.
 
 - **Backup storage location:** `backups/sample-training-backup`
 - **Explanation:** The entire `sample_training` database was backed up. The backup output shows 1 document for `sample_training.records` and 1 document for `sample_training.github_repositories`.
+
+Production automated backups are not stored in the local `backups/` directory. They are stored as timestamped archive files in Amazon S3, as shown in Section 7.7.
 
 ### 6.3 Dropping the collection or database
 
@@ -176,7 +186,7 @@ The script runs the `mongodump` command with the required parameters. The manual
 
 - **Screenshot or terminal output:** `docs/screenshots/35-restore-executed.png`
 - **Measured restore duration:** The restore command completed in approximately 1.3 seconds. This value represents only the execution time of the restore command and is not considered an end-to-end production RTO.
-- **Explanation:** The `sample_training` database was restored from the backup using `mongorestore`. A total of 2 documents were successfully restored and 0 documents failed to restore.
+- **Explanation:** The `sample_training` database was restored from the backup taken during the manual end-to-end test using `mongorestore`. A total of 2 documents were successfully restored and 0 documents failed to restore.
 
 ### 6.6 Verifying that the data is back
 
@@ -185,7 +195,9 @@ The script runs the `mongodump` command with the required parameters. The manual
 - **Database output (2):** `docs/screenshots/38-data-restored-verified-database-02.png`
 - **Explanation:** After the restore operation, the `sample_training.records` and `sample_training.github_repositories` collections were recreated, and the previous data was confirmed to be accessible again through both MongoDB Atlas and the web interface.
 
-> The runbook, RPO/RTO targets, and retention period must be documented in `docs/backup-restore.md`.
+> The runbook, RPO/RTO targets, backup schedule, and retention limitations are documented in `docs/backup-restore.md`.
+
+---
 
 ## 7. Logging, Monitoring, and Advanced Criteria
 
@@ -229,27 +241,44 @@ The evidence for the implemented logging, monitoring, alerting, security control
 - **Trivy container security scan screenshot:** `docs/screenshots/46-trivy-security-scan.png`
 - **Explanation:** The frontend, backend, and Python ETL container images are scanned using Trivy as part of the GitHub Actions CI pipeline. The scan checks OS packages, application dependencies, and potentially embedded secrets within the images. Scan results are reported in the GitHub Actions logs, and under the current case configuration, vulnerability findings do not automatically block deployment.
 
-### 7.5 ETL Logging
+### 7.5 Advanced Criteria #7 - Advanced Disaster Recovery: Off-Cluster Scheduled Backup
+
+- **Automated backup and S3 evidence:** `docs/screenshots/47-backup-cronjob-scheduled-success.png`
+- **Explanation:** An automated backup mechanism runs on AWS EKS using the `mongodb-backup` Kubernetes CronJob to keep MongoDB Atlas data outside the Kubernetes cluster. The CronJob is configured with the `0 2 * * *` (At 02.00 a.m.) schedule and the `Europe/Istanbul` timezone for daily execution.
+
+  The backup workload uses `mongodump` to back up the `sample_training` database in `.archive.gz` format and uploads the timestamped archive file to the `sample_training/` prefix in Amazon S3.
+
+  Each backup is stored as a separate object, so previous backups are not overwritten. The backup file is checked with `test -s` to ensure that it is not empty, and `aws s3api head-object` is used after the upload to verify that the S3 object was successfully created.
+
+  The backup workload uses a dedicated `s3-backup` ServiceAccount, and the required S3 access is restricted through a least-privilege IAM policy. The backup containers also run as non-root users with privilege escalation disabled.
+
+  Successful execution of the real scheduled backup Job and the resulting S3 backup are evidenced by `docs/screenshots/47-backup-cronjob-scheduled-success.png`.
+
+  This mechanism is separate from the manual end-to-end backup/restore test in Section 6. The manual test verifies that a backup can be restored, while the automated mechanism provides regular, off-cluster backup storage.
+
+  S3 Lifecycle-based automatic retention/deletion, PITR, automated restore verification, and periodic full DR drills have not been implemented as part of this case. The backup schedule, storage approach, restore method, RPO/RTO assessment, and limitations are documented in `docs/backup-restore.md`.
+
+### 7.6 ETL Logging
 
 - **ETL log screenshot:** `docs/screenshots/21-etl-update-without-duplicate.png`
 - **Explanation:** The logs of the ETL CronJob running on Kubernetes show the retrieval of the GitHub repository, the MongoDB connection, the update of the existing repository using `github_id`, the document count check, and the successful completion of the ETL process.
 
-### 7.6 ETL Scheduling
+### 7.7 ETL Scheduling
 
-- **EKS CronJob schedule screenshot:** `docs/screenshots/47-eks-cronjob-schedule.png`
+- **EKS CronJob schedule screenshot:** `docs/screenshots/48-eks-cronjob-schedule.png`
 - **Explanation:** The `etl` CronJob running on EKS is shown to use the `0 * * * *` schedule for hourly execution and the `Europe/Istanbul` timezone.
 
 ## 8. Additional Evidence
 
 ### 8.1 Kubernetes Security Hardening
 
-- **Backend non-root evidence:** `docs/screenshots/48-backend-non-root-kubernetes.png`
-- **Frontend non-root evidence:** `docs/screenshots/49-frontend-non-root-kubernetes.png`
-- **ETL non-root evidence:** `docs/screenshots/50-etl-non-root-kubernetes.png`
+- **Backend non-root evidence:** `docs/screenshots/49-backend-non-root-kubernetes.png`
+- **Frontend non-root evidence:** `docs/screenshots/50-frontend-non-root-kubernetes.png`
+- **ETL non-root evidence:** `docs/screenshots/51-etl-non-root-kubernetes.png`
 - **Explanation:** The Kubernetes workloads were verified not to run as the root user. The backend runs as `node` (UID 1000), the frontend as `nginx` (UID 101), and the ETL as `appuser` (UID 10001). In addition, `allowPrivilegeEscalation` is disabled and all Linux capabilities are dropped.
 
 ### 8.2 AWS / EKS deployment configuration
 
-- **EKS cluster and node status:** `docs/screenshots/51-eks-cluster-config.png`
-- **EKS managed node group configuration:** `docs/screenshots/52-eks-node-group-config.png`
+- **EKS cluster and node status:** `docs/screenshots/52-eks-cluster-config.png`
+- **EKS managed node group configuration:** `docs/screenshots/53-eks-node-group-config.png`
 - **Explanation:** The `devops-case-eks` EKS cluster is shown to be running in the `eu-central-1` region with a `Ready` worker node. The running node uses Kubernetes `v1.36.3` and Amazon Linux 2023. The EKS managed node group is configured with the name `devops-workers` and uses the `t3.small` instance type with 1 desired node. The cluster and node group configuration is defined in the repository's `eks-cluster.yaml` file. Kubernetes workload configuration is managed through Kustomize overlays for each environment, with the production deployment performed using `k8s/overlays/prod`.
