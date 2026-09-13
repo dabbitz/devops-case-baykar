@@ -201,9 +201,7 @@ Production ortamındaki otomatik backup'lar ise local `backups/` dizininde deği
 
 ## 7. Logging, Monitoring ve Üst Kriterler
 
-Uyguladığınız logging, monitoring, alarm, Helm, Terraform, güvenlik taraması veya diğer üst kriterlere ait kanıtları ekleyin.
-
-Uygulanan logging, monitoring, alarm, güvenlik ve diğer üst kriterlere ait kanıtlar aşağıda verilmiştir.
+Uygulanan logging, monitoring, alarm, güvenlik, release yönetimi ve diğer üst kriterlere ait kanıtlar aşağıda verilmiştir.
 
 ### 7.1 Üst Kriter #2 - Paketleme ve Ortam Yönetimi: Kustomize
 
@@ -241,9 +239,29 @@ Uygulanan logging, monitoring, alarm, güvenlik ve diğer üst kriterlere ait ka
 - **Trivy container security scan görseli:** `docs/screenshots/46-trivy-security-scan.png`
 - **Açıklama:** Frontend, backend ve Python ETL container image'ları GitHub Actions CI pipeline'ının bir parçası olarak Trivy kullanılarak taranmaktadır. Tarama kapsamında OS paketleri, uygulama dependency'leri ve image içerisinde bulunabilecek secret bilgiler kontrol edilmektedir. Tarama sonuçları GitHub Actions loglarında raporlanmakta ve mevcut case yapılandırmasında vulnerability bulguları deployment'ı otomatik olarak engellememektedir.
 
-### 7.5 Üst Kriter #7 - İleri Felaket Kurtarma: Off-Cluster Scheduled Backup
+### 7.5 Üst Kriter #6 - GitOps ve Release Stratejisi: Kontrollü Production Onayı
 
-- **Otomatik backup ve S3 kanıtı:** `docs/screenshots/47-backup-cronjob-scheduled-success.png`
+- **Production approval bekleme görseli:** `docs/screenshots/47-production-approval-pending.png`
+- **Production approval sonrası deployment görseli:** `docs/screenshots/48-production-approval-approved.png`
+- **Açıklama:** Production deployment'ı GitHub Actions üzerinde `production` Environment protection ile kontrollü production onayına bağlanmıştır. `main` branch'ine yapılan başarılı push sonrasında `validate-and-build` job'ı tamamlanmakta, ardından `deploy-eks` job'ı production approval bekleme durumuna geçmektedir.
+
+  Production deployment'ı yetkili reviewer tarafından onaylanmadan AWS EKS'e deployment yapılmamaktadır. Onay verildikten sonra `deploy-eks` job'ı çalıştırılmakta, ECR image push, EKS authentication, Kustomize deployment ve workload doğrulama adımları gerçekleştirilmektedir.
+
+  `docs/screenshots/47-production-approval-pending.png`, production deployment'ının onay beklediğini; `docs/screenshots/48-production-approval-approved.png` ise onay sonrasında deployment job'ının devam ederek başarıyla tamamlandığını göstermektedir.
+
+  Workflow içerisinde production deployment için:
+
+```yaml
+environment: production
+```
+
+tanımlanmıştır. Production Environment ayrıca yalnızca `main` branch'inden deployment kabul edecek şekilde sınırlandırılmıştır.
+
+Bu yapı, production'a yapılan her deployment'ın CI doğrulaması sonrasında kontrollü bir insan onayından geçmesini sağlamaktadır.
+
+### 7.6 Üst Kriter #7 - İleri Felaket Kurtarma: Off-Cluster Scheduled Backup
+
+- **Otomatik backup ve S3 kanıtı:** `docs/screenshots/49-backup-cronjob-scheduled-success.png`
 - **Açıklama:** MongoDB Atlas verilerinin cluster dışında tutulmasını sağlayan otomatik backup mekanizması AWS EKS üzerinde `mongodb-backup` Kubernetes CronJob ile çalışmaktadır. CronJob `0 2 * * *` schedule'ı (Saat 02.00'de) ve `Europe/Istanbul` timezone'u ile günlük olarak çalışacak şekilde yapılandırılmıştır.
 
   Backup workload'u `mongodump` ile `sample_training` database'ini `.archive.gz` formatında yedeklemekte ve timestamp'li arşiv dosyasını Amazon S3 üzerindeki `sample_training/` prefix'ine yüklemektedir.
@@ -252,32 +270,33 @@ Uygulanan logging, monitoring, alarm, güvenlik ve diğer üst kriterlere ait ka
 
   Backup workload'u ayrı `s3-backup` ServiceAccount kullanmakta ve gerekli S3 erişimi least-privilege IAM policy ile sınırlandırılmaktadır. Backup container'ları ayrıca non-root ve privilege escalation kapalı şekilde çalıştırılmaktadır.
 
-  Otomatik backup'ın gerçek scheduled Job üzerinden başarıyla çalıştığı ve backup çıktısının S3'e gönderildiği `docs/screenshots/47-backup-cronjob-scheduled-success.png` kanıtı ile gösterilmektedir.
+  Otomatik backup'ın gerçek scheduled Job üzerinden başarıyla çalıştığı ve backup çıktısının S3'e gönderildiği `docs/screenshots/49-backup-cronjob-scheduled-success.png` kanıtı ile gösterilmektedir.
 
   Bu mekanizma case kapsamındaki manuel uçtan uca backup/restore testinden ayrıdır. Manuel test, backup'ın geri yüklenebilir olduğunu doğrularken; bu otomatik mekanizma düzenli ve cluster dışı backup storage gereksinimini karşılamaktadır.
 
   Bu case kapsamında S3 Lifecycle tabanlı otomatik retention/silme politikası, PITR, otomatik restore verification ve periyodik tam DR drill uygulanmamıştır. Mevcut backup schedule, storage yaklaşımı, restore yöntemi, RPO/RTO değerlendirmesi ve sınırlamalar `docs/backup-restore.md` içerisinde detaylandırılmıştır.
 
-### 7.6 ETL Logging
+### 7.7 ETL Logging
 
 - **ETL log görseli:** `docs/screenshots/21-etl-update-without-duplicate.png`
 - **Açıklama:** Kubernetes üzerinde çalışan ETL CronJob'un logları GitHub repository'sinin alınmasını, MongoDB bağlantısını, mevcut repository'nin `github_id` kullanılarak güncellenmesini, document count kontrolünü ve ETL işleminin başarıyla tamamlanmasını göstermektedir.
 
-### 7.7 ETL Scheduling
-- **EKS CronJob schedule görseli:** `docs/screenshots/48-eks-cronjob-schedule.png`
+### 7.8 ETL Scheduling
+
+- **EKS CronJob schedule görseli:** `docs/screenshots/50-eks-cronjob-schedule.png`
 - **Açıklama:** EKS üzerinde çalışan `etl` CronJob'un saatlik çalışmak üzere `0 * * * *` schedule'ını ve `Europe/Istanbul` timezone'unu kullandığı gösterilmektedir.
 
 ## 8. Ek Kanıtlar
 
 ### 8.1 Kubernetes Güvenlik Sertleştirmesi
 
-- **Backend non-root kanıtı:** `docs/screenshots/49-backend-non-root-kubernetes.png`
-- **Frontend non-root kanıtı:** `docs/screenshots/50-frontend-non-root-kubernetes.png`
-- **ETL non-root kanıtı:** `docs/screenshots/51-etl-non-root-kubernetes.png`
+- **Backend non-root kanıtı:** `docs/screenshots/51-backend-non-root-kubernetes.png`
+- **Frontend non-root kanıtı:** `docs/screenshots/52-frontend-non-root-kubernetes.png`
+- **ETL non-root kanıtı:** `docs/screenshots/53-etl-non-root-kubernetes.png`
 - **Açıklama:** Kubernetes workload'larının root kullanıcıyla çalışmadığı doğrulanmıştır. Backend `node` (UID 1000), frontend `nginx` (UID 101) ve ETL `appuser` (UID 10001) olarak çalışmaktadır. Ayrıca `allowPrivilegeEscalation` devre dışı bırakılmış ve tüm Linux capabilities drop edilmiştir.
 
 ### 8.2 AWS / EKS Deployment Yapılandırması
 
-- **EKS cluster ve node durumu:** `docs/screenshots/52-eks-cluster-config.png`
-- **EKS managed node group yapılandırması:** `docs/screenshots/53-eks-node-group-config.png`
+- **EKS cluster ve node durumu:** `docs/screenshots/54-eks-cluster-config.png`
+- **EKS managed node group yapılandırması:** `docs/screenshots/55-eks-node-group-config.png`
 - **Açıklama:** `devops-case-eks` EKS cluster'ının `eu-central-1` region'ında çalıştığı ve `Ready` durumunda bir worker node'a sahip olduğu gösterilmektedir. Çalışan node Kubernetes `v1.36.3` ve Amazon Linux 2023 kullanmaktadır. EKS managed node group'u `devops-workers` adıyla ve `t3.small` instance type'ı kullanılarak 1 adet desired node ile yapılandırılmıştır. Cluster ve node group yapılandırması repository içerisindeki `eks-cluster.yaml` dosyasında tanımlanmıştır. Kubernetes workload'larının ortam bazlı yapılandırması Kustomize overlay'leri ile yönetilmekte ve production deployment `k8s/overlays/prod` üzerinden gerçekleştirilmektedir.

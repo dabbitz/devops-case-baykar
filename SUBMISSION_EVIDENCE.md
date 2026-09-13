@@ -205,7 +205,7 @@ Add evidence for any implemented logging, monitoring, alerting, Helm, Terraform,
 
 The evidence for the implemented logging, monitoring, alerting, security controls, and other advanced criteria is provided below.
 
-### 7.1 Upper Criteria #2 - Packaging and Environment Management: Kustomize
+### 7.1 Advanced Criteria #2 - Packaging and Environment Management: Kustomize
 
 - **Backend environment evidence:** `docs/screenshots/39-kustomize-backend-dev-test-prod.png`
 - **Frontend environment evidence:** `docs/screenshots/40-kustomize-frontend-dev-test-prod.png`
@@ -241,9 +241,29 @@ The evidence for the implemented logging, monitoring, alerting, security control
 - **Trivy container security scan screenshot:** `docs/screenshots/46-trivy-security-scan.png`
 - **Explanation:** The frontend, backend, and Python ETL container images are scanned using Trivy as part of the GitHub Actions CI pipeline. The scan checks OS packages, application dependencies, and potentially embedded secrets within the images. Scan results are reported in the GitHub Actions logs, and under the current case configuration, vulnerability findings do not automatically block deployment.
 
-### 7.5 Advanced Criteria #7 - Advanced Disaster Recovery: Off-Cluster Scheduled Backup
+### 7.5 Advanced Criteria #6 - GitOps and Release Strategy: Controlled Production Approval
 
-- **Automated backup and S3 evidence:** `docs/screenshots/47-backup-cronjob-scheduled-success.png`
+- **Production approval waiting screenshot:** `docs/screenshots/47-production-approval-pending.png`
+- **Post-approval deployment screenshot:** `docs/screenshots/48-production-approval-approved.png`
+- **Description:** Production deployment is protected by a controlled approval process using the `production` Environment in GitHub Actions. After a successful push to the `main` branch, the `validate-and-build` job completes, after which the `deploy-eks` job enters a waiting state for production approval.
+
+  No deployment to AWS EKS is performed until the production deployment is approved by an authorized reviewer. After approval, the `deploy-eks` job runs and performs the ECR image push, EKS authentication, Kustomize deployment, and workload verification steps.
+
+  `docs/screenshots/47-production-approval-pending.png` shows that the production deployment is waiting for approval, while `docs/screenshots/48-production-approval-approved.png` shows that the deployment job continued and completed successfully after approval.
+
+  The workflow defines the production deployment environment as:
+
+```yaml
+environment: production
+```
+
+The `production` Environment is also restricted to deployments from the `main` branch.
+
+This setup ensures that every production deployment passes through a controlled human approval step after CI validation.
+
+### 7.6 Advanced Criteria #7 - Advanced Disaster Recovery: Off-Cluster Scheduled Backup
+
+- **Automated backup and S3 evidence:** `docs/screenshots/49-backup-cronjob-scheduled-success.png`
 - **Explanation:** An automated backup mechanism runs on AWS EKS using the `mongodb-backup` Kubernetes CronJob to keep MongoDB Atlas data outside the Kubernetes cluster. The CronJob is configured with the `0 2 * * *` (At 02.00 a.m.) schedule and the `Europe/Istanbul` timezone for daily execution.
 
   The backup workload uses `mongodump` to back up the `sample_training` database in `.archive.gz` format and uploads the timestamped archive file to the `sample_training/` prefix in Amazon S3.
@@ -252,33 +272,33 @@ The evidence for the implemented logging, monitoring, alerting, security control
 
   The backup workload uses a dedicated `s3-backup` ServiceAccount, and the required S3 access is restricted through a least-privilege IAM policy. The backup containers also run as non-root users with privilege escalation disabled.
 
-  Successful execution of the real scheduled backup Job and the resulting S3 backup are evidenced by `docs/screenshots/47-backup-cronjob-scheduled-success.png`.
+  Successful execution of the real scheduled backup Job and the resulting S3 backup are evidenced by `docs/screenshots/49-backup-cronjob-scheduled-success.png`.
 
   This mechanism is separate from the manual end-to-end backup/restore test in Section 6. The manual test verifies that a backup can be restored, while the automated mechanism provides regular, off-cluster backup storage.
 
   S3 Lifecycle-based automatic retention/deletion, PITR, automated restore verification, and periodic full DR drills have not been implemented as part of this case. The backup schedule, storage approach, restore method, RPO/RTO assessment, and limitations are documented in `docs/backup-restore.md`.
 
-### 7.6 ETL Logging
+### 7.7 ETL Logging
 
 - **ETL log screenshot:** `docs/screenshots/21-etl-update-without-duplicate.png`
 - **Explanation:** The logs of the ETL CronJob running on Kubernetes show the retrieval of the GitHub repository, the MongoDB connection, the update of the existing repository using `github_id`, the document count check, and the successful completion of the ETL process.
 
-### 7.7 ETL Scheduling
+### 7.8 ETL Scheduling
 
-- **EKS CronJob schedule screenshot:** `docs/screenshots/48-eks-cronjob-schedule.png`
+- **EKS CronJob schedule screenshot:** `docs/screenshots/50-eks-cronjob-schedule.png`
 - **Explanation:** The `etl` CronJob running on EKS is shown to use the `0 * * * *` schedule for hourly execution and the `Europe/Istanbul` timezone.
 
 ## 8. Additional Evidence
 
 ### 8.1 Kubernetes Security Hardening
 
-- **Backend non-root evidence:** `docs/screenshots/49-backend-non-root-kubernetes.png`
-- **Frontend non-root evidence:** `docs/screenshots/50-frontend-non-root-kubernetes.png`
-- **ETL non-root evidence:** `docs/screenshots/51-etl-non-root-kubernetes.png`
+- **Backend non-root evidence:** `docs/screenshots/51-backend-non-root-kubernetes.png`
+- **Frontend non-root evidence:** `docs/screenshots/52-frontend-non-root-kubernetes.png`
+- **ETL non-root evidence:** `docs/screenshots/53-etl-non-root-kubernetes.png`
 - **Explanation:** The Kubernetes workloads were verified not to run as the root user. The backend runs as `node` (UID 1000), the frontend as `nginx` (UID 101), and the ETL as `appuser` (UID 10001). In addition, `allowPrivilegeEscalation` is disabled and all Linux capabilities are dropped.
 
 ### 8.2 AWS / EKS deployment configuration
 
-- **EKS cluster and node status:** `docs/screenshots/52-eks-cluster-config.png`
-- **EKS managed node group configuration:** `docs/screenshots/53-eks-node-group-config.png`
+- **EKS cluster and node status:** `docs/screenshots/54-eks-cluster-config.png`
+- **EKS managed node group configuration:** `docs/screenshots/55-eks-node-group-config.png`
 - **Explanation:** The `devops-case-eks` EKS cluster is shown to be running in the `eu-central-1` region with a `Ready` worker node. The running node uses Kubernetes `v1.36.3` and Amazon Linux 2023. The EKS managed node group is configured with the name `devops-workers` and uses the `t3.small` instance type with 1 desired node. The cluster and node group configuration is defined in the repository's `eks-cluster.yaml` file. Kubernetes workload configuration is managed through Kustomize overlays for each environment, with the production deployment performed using `k8s/overlays/prod`.
