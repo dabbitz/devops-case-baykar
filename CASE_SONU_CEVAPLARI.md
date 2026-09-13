@@ -201,7 +201,7 @@ Karar verirken aşağıdaki konuları nasıl değerlendirdiğinizi belirtin:
 **Cevap:**
 
 - **Frontend → `Deployment`:** Stateless web workload'dur; kalıcı storage, özel Pod kimliği veya sıralı çalışma gerektirmez. Rolling update ve replica yönetimi desteklenir. Liveness/readiness probe'ları ve CPU/memory resource requests/limits tanımlıdır.
-- **Backend → `Deployment`:** Stateless REST API'dir; kalıcı veri MongoDB Atlas'ta tutulur. Özel Pod kimliği veya sıralı çalışma gerekmez ve yatay olarak ölçeklenebilir. `/healthcheck/` üzerinden liveness/readiness probe'ları ve CPU/memory resource requests/limits tanımlıdır. Kontrollü `RollingUpdate` için `maxSurge: 1` ve `maxUnavailable: 0` kullanılmıştır.
+- **Backend → `Deployment`:** Stateless REST API'dir; kalıcı veri MongoDB Atlas'ta tutulur. Özel Pod kimliği veya sıralı çalışma gerekmez ve yatay olarak ölçeklenebilir. `/api/healthcheck/` üzerinden liveness/readiness probe'ları ve CPU/memory resource requests/limits tanımlıdır. Kontrollü `RollingUpdate` için `maxSurge: 1` ve `maxUnavailable: 0` kullanılmıştır.
 - **MongoDB → MongoDB Atlas:** Normal application deployment'ında MongoDB Kubernetes içinde çalıştırılmadığından `StatefulSet` kullanılmamıştır. CI'daki MongoDB yalnızca ephemeral test workload'udur.
 - **ETL → `CronJob`:** Saatlik çalışan periyodik bir workload'dur. Her çalışma ayrı bir `Job` oluşturur. `Forbid` concurrency policy ile çakışan çalışmalar engellenir ve başarısız çalışmalarda retry uygulanır.
 
@@ -241,7 +241,7 @@ Kullanıcı etkisini azaltmak ve servisin kontrollü şekilde toparlanmasını s
 
 Backend, MongoDB bağlantısını startup sırasında kurar ve bağlantı başarısız olduğunda fail-fast davranarak process'i sonlandırır.
 
-Mevcut `/healthcheck/` endpoint'i HTTP process erişilebilirliğini doğrular ve backend Deployment'ında readiness/liveness probe olarak kullanılmaktadır; MongoDB dependency'sini doğrudan kontrol etmez.
+Mevcut `/api/healthcheck/` endpoint'i HTTP process erişilebilirliğini doğrular ve backend Deployment'ında readiness/liveness probe olarak kullanılmaktadır; MongoDB dependency'sini doğrudan kontrol etmez.
 
 Production'da readiness probe'u MongoDB dahil gerekli dependency'leri kontrol edecek şekilde ayırırdım. Böylece database erişimi olmayan bir Pod yeni kullanıcı trafiğini almaktan çıkarılabilir.
 

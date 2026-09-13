@@ -87,21 +87,17 @@ Frontend React ile geliştirilmiş ve production container içerisinde NGINX tar
 
 Görevleri:
 
-* Kullanıcı arayüzünü sunmak
-* Record oluşturma ve güncelleme işlemlerini başlatmak
-* Backend API'lerine HTTP istekleri göndermek
+- Kullanıcı arayüzünü sunmak
+- Record oluşturma ve güncelleme işlemlerini başlatmak
+- Backend API'lerine HTTP istekleri göndermek
 
 Frontend Kubernetes üzerinde:
 
 ```text
 frontend Deployment
-
         ↓
-
 frontend-service
-
         ↓
-
 React + NGINX
 ```
 
@@ -119,23 +115,19 @@ Backend Node.js ve Express kullanmaktadır.
 
 Başlıca görevleri:
 
-* REST API sağlamak
-* Record CRUD işlemlerini gerçekleştirmek
-* Input ve ObjectId validation yapmak
-* MongoDB ile iletişim kurmak
-* Healthcheck endpoint'i sağlamak
+- REST API sağlamak
+- Record CRUD işlemlerini gerçekleştirmek
+- Input ve ObjectId validation yapmak
+- MongoDB ile iletişim kurmak
+- Healthcheck endpoint'i sağlamak
 
 Backend Kubernetes üzerinde:
 
 ```text
 backend Deployment
-
         ↓
-
 backend-service
-
         ↓
-
 Node.js / Express
 ```
 
@@ -143,7 +135,7 @@ Node.js / Express
 
 `backend-service` `ClusterIP` tipindedir ve doğrudan internete açılmamıştır.
 
-Backend Deployment'ında `/healthcheck/` endpoint'i üzerinden liveness ve readiness probe'ları tanımlanmıştır. CPU ve memory resource requests/limits uygulanmıştır.
+Backend Deployment'ında `/api/healthcheck/` endpoint'i üzerinden liveness ve readiness probe'ları tanımlanmıştır. CPU ve memory resource requests/limits uygulanmıştır.
 
 ---
 
@@ -181,21 +173,13 @@ Akış:
 
 ```text
 Kubernetes CronJob
-
         ↓
-
 Python ETL
-
         ↓
-
 GitHub API
-
         ↓
-
 Repository data
-
         ↓
-
 MongoDB Atlas
 ```
 
@@ -221,41 +205,23 @@ AWS EKS üzerindeki normal kullanıcı trafiği:
 
 ```text
 Browser
-
    ↓
-
 AWS Elastic Load Balancer
-
    ↓
-
 Envoy Gateway
-
    ↓
-
 HTTPRoute
-
    ↓
-
 frontend-service
-
    ↓
-
 React / NGINX
-
    ↓
-
 /api/*
-
    ↓
-
 backend-service
-
    ↓
-
 Node.js / Express
-
    ↓
-
 MongoDB Atlas
 ```
 
@@ -277,25 +243,15 @@ ETL veri akışı web request akışından bağımsızdır:
 
 ```text
 Kubernetes CronJob
-
         ↓
-
 Python ETL
-
         ↓
-
 GitHub API
-
         ↓
-
 Repository JSON
-
         ↓
-
 MongoDB Atlas
-
         ↓
-
 github_repositories
 ```
 
@@ -335,7 +291,7 @@ ETL periyodik bir workload olduğu için `CronJob` olarak yapılandırılmışt�
 
 MongoDB normal deployment'ta Kubernetes workload'u olarak çalıştırılmamaktadır; MongoDB Atlas kullanılmaktadır.
 
-Frontend ve backend Deployment'larında liveness/readiness probe'ları tanımlanmıştır. Backend `/healthcheck/`, frontend `/` endpoint'i üzerinden kontrol edilmektedir. Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits bulunmaktadır.
+Frontend ve backend Deployment'larında liveness/readiness probe'ları tanımlanmıştır. Backend `/api/healthcheck/`, frontend `/` endpoint'i üzerinden kontrol edilmektedir. Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits bulunmaktadır.
 
 Backend Deployment'ı `maxSurge: 1` ve `maxUnavailable: 0` ile kontrollü `RollingUpdate` stratejisi kullanmaktadır. Yeni Pod readiness probe ile hazır olduktan sonra eski Pod sonlandırılmakta ve geçiş `v1 → v1 + v2 → v2` şeklinde gerçekleşmektedir.
 
@@ -343,15 +299,11 @@ AWS EKS uygulama kaynakları Kustomize ile yönetilmektedir:
 
 ```text
 k8s/eks/              → ortak base
-
         ↓
-
 overlays/dev/
 overlays/test/
 overlays/prod/
-
         ↓
-
 Environment-specific configuration
 ```
 

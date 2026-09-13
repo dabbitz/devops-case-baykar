@@ -52,14 +52,14 @@ Ekran görüntülerinde gerçek credential, token, parola, private key veya hass
 - **Health check ve resource tanımları (etl):** `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
 - **Açıklama:** Uygulama AWS EKS üzerinde `devops-case-eks` cluster'ına deploy edilmiştir. Backend ve frontend Deployment'ları, Service kaynakları ve Python ETL CronJob'u EKS üzerinde çalışmaktadır. Container image'ları Amazon ECR üzerinden çekilmektedir.
 
-Backend ve frontend Deployment'larında Kubernetes liveness/readiness probe'ları tanımlanmıştır. Backend için `/healthcheck/`, frontend için `/` endpoint'i kullanılmaktadır. Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits tanımlanmıştır. Backend Deployment'ında `maxSurge: 1` ve `maxUnavailable: 0` ayarlanmıştır (7.2'de detaylar açıklanmıştır).
+Backend ve frontend Deployment'larında liveness/readiness probe'ları, tüm ana workload'larda ise CPU ve memory resource requests/limits tanımlanmıştır. Backend Deployment'ında `maxSurge: 1` ve `maxUnavailable: 0` ile kontrollü RollingUpdate yapılandırılmıştır (7.2'de detaylandırılmıştır).
 
 ### 3.3 Cloud dış erişim
 
 - **AWS Load Balancer ve Gateway görseli:** `docs/screenshots/18-eks-external-access.png`
 - **Backend healthcheck görseli:** `docs/screenshots/19-eks-backend-healthcheck.png`
 - **Frontend dış erişim görseli:** `docs/screenshots/01-web-home.png`
-- **Açıklama:** Envoy Gateway `LoadBalancer` Service üzerinden AWS Elastic Load Balancer ile internetten erişilebilir hale getirilmiştir. HTTPRoute ile `/` istekleri frontend-service'e, `/api` istekleri backend-service'e yönlendirilmiştir. Dışarıdan yapılan gerçek HTTP isteklerinde React frontend uygulaması ve backend `/api/healthcheck` endpoint'i başarıyla doğrulanmıştır.
+- **Açıklama:** Envoy Gateway `LoadBalancer` Service üzerinden AWS Elastic Load Balancer ile internetten erişilebilir hale getirilmiştir. HTTPRoute ile `/` istekleri `frontend-service`'e, `/api` istekleri `backend-service`'e yönlendirilmiştir. Dışarıdan yapılan gerçek HTTP isteklerinde React frontend uygulaması ve backend `/api/healthcheck` endpoint'i başarıyla doğrulanmıştır.
 
 ## 4. Python ETL
 

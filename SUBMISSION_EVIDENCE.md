@@ -52,7 +52,7 @@ Screenshots must not expose real credentials, tokens, passwords, private keys, o
 - **Health check and resource definitions (ETL):** `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
 - **Explanation:** The application has been deployed to the `devops-case-eks` cluster on AWS EKS. The backend and frontend Deployments, Service resources, and the Python ETL CronJob are running on EKS. Container images are pulled from Amazon ECR.
 
-Liveness/readiness probes are defined for the Kubernetes backend and frontend Deployments. The `/healthcheck/` endpoint is used for the backend, while `/` is used for the frontend. CPU and memory resource requests/limits are defined for the backend, frontend, and ETL workloads. The backend Deployment is configured with `maxSurge: 1` and `maxUnavailable: 0` (detailed in Section 7.2).
+Liveness/readiness probes are defined for the backend and frontend Deployments, while CPU and memory resource requests/limits are configured for all main workloads. The backend Deployment uses a controlled RollingUpdate strategy with `maxSurge: 1` and `maxUnavailable: 0`(detailed in Section 7.2).
 
 ### 3.3 Cloud external access
 

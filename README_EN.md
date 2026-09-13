@@ -102,6 +102,18 @@ http://[REDACTED].eu-central-1.elb.amazonaws.com/records
 http://[REDACTED].eu-central-1.elb.amazonaws.com/api/healthcheck
 ```
 
+**Create:**
+
+```text
+http://[REDACTED].eu-central-1.elb.amazonaws.com/create
+```
+
+**Edit:**
+
+```text
+http://[REDACTED].eu-central-1.elb.amazonaws.com/edit/<document-id>
+```
+
 > **Important:** The addresses used belong to the AWS Load Balancer created during this project. They should **not be considered permanent production URLs**. In particular, if the EKS cluster, Envoy Gateway, or Load Balancer is recreated, AWS may assign a new hostname. The addresses may also become inaccessible if the AWS resources used for the project are removed after submission.
 
 > **Actual EKS access address:** In the public repository, the Load Balancer hostname is shown as `[REDACTED]`. The actual access address used during the project is provided in a `.txt` file located in the project root of the submitted `.zip` file.
@@ -136,8 +148,10 @@ The `<AWS Load Balancer hostname>` value can then be used to construct the appli
 
 ```text
 http://<EXTERNAL-IP>/
-http://<EXTERNAL-IP>/records
 http://<EXTERNAL-IP>/api/healthcheck
+http://<EXTERNAL-IP>/records
+http://<EXTERNAL-IP>/create
+http://<EXTERNAL-IP>/edit/<document-id>
 ```
 
 Therefore, if the hostname listed in this README is no longer valid, check the current `EXTERNAL-IP` value from the Kubernetes Service before attempting to access the application.

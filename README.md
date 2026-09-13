@@ -102,6 +102,18 @@ http://[REDACTED].eu-central-1.elb.amazonaws.com/records
 http://[REDACTED].eu-central-1.elb.amazonaws.com/api/healthcheck
 ```
 
+**Create:**
+
+```text
+http://[REDACTED].eu-central-1.elb.amazonaws.com/create
+```
+
+**Edit:**
+
+```text
+http://[REDACTED].eu-central-1.elb.amazonaws.com/edit/<document-id>
+```
+
 > **Önemli:** Kullanılan adresler, bu çalışma sırasında oluşturulmuş olan mevcut AWS Load Balancer'a aittir. Bu adresler **kalıcı bir production URL'si olarak değerlendirilmemelidir**. Özellikle EKS cluster'ı, Envoy Gateway veya Load Balancer yeniden oluşturulursa AWS yeni bir hostname atayabilir. Ayrıca teslim sonrasında kullanılan AWS kaynaklarının kaldırılması durumunda erişilemez hale gelebilir.
 
 > **Gerçek EKS erişim adresi:** Public repository'de Load Balancer hostname'i `[REDACTED]` olarak gösterilmiştir. Çalışma sırasında kullanılan gerçek erişim adresi teslim edilen `.zip` dosyasının içinde, projenin root'unda, bir `.txt` dosyasında paylaşılmıştır.
@@ -136,8 +148,10 @@ Buradaki `<AWS Load Balancer hostname>` değeri kullanılarak erişim adresleri 
 
 ```text
 http://<EXTERNAL-IP>/
-http://<EXTERNAL-IP>/records
 http://<EXTERNAL-IP>/api/healthcheck
+http://<EXTERNAL-IP>/records
+http://<EXTERNAL-IP>/create
+http://<EXTERNAL-IP>/edit/<document-id>
 ```
 
 Dolayısıyla README'deki mevcut hostname artık geçerli değilse, yeni adresi yeniden README'ye eklemek yerine öncelikle Kubernetes Service üzerinden güncel `EXTERNAL-IP` değeri kontrol edilmelidir.

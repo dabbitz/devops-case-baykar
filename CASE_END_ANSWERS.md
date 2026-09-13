@@ -214,7 +214,7 @@ Describe how you evaluated the following:
 **Answer:**
 
 - **Frontend → `Deployment`:** It is a stateless web workload and does not require persistent storage, a unique Pod identity, or ordered execution. It supports rolling updates and replica management. Liveness/readiness probes and CPU/memory resource requests/limits are defined.
-- **Backend → `Deployment`:** It is a stateless REST API; persistent data is stored in MongoDB Atlas. It does not require a dedicated Pod identity or ordered execution and can be scaled horizontally. Liveness/readiness probes are defined on `/healthcheck/`, together with CPU/memory resource requests/limits. A controlled `RollingUpdate` strategy uses `maxSurge: 1` and `maxUnavailable: 0`.
+- **Backend → `Deployment`:** It is a stateless REST API; persistent data is stored in MongoDB Atlas. It does not require a dedicated Pod identity or ordered execution and can be scaled horizontally. Liveness/readiness probes are defined on `/api/healthcheck/`, together with CPU/memory resource requests/limits. A controlled `RollingUpdate` strategy uses `maxSurge: 1` and `maxUnavailable: 0`.
 - **MongoDB → MongoDB Atlas:** MongoDB Atlas is used in the normal application deployment, so a Kubernetes `StatefulSet` is not required. The MongoDB instance used in CI is only an ephemeral test workload.
 - **ETL → `CronJob`:** It is a periodic workload that runs hourly. Each execution creates a separate `Job`. Overlapping executions are prevented with `Forbid`, and failed executions are retried.
 
@@ -254,7 +254,7 @@ What measures did you take, or would you take, to reduce user impact and allow t
 
 The backend establishes the MongoDB connection during startup and fails fast if the connection cannot be established.
 
-The existing `/healthcheck/` endpoint verifies that the HTTP process is responsive and is used as the readiness/liveness probe in the backend Deployment; it does not directly check the MongoDB dependency.
+The existing `/api/healthcheck/` endpoint verifies that the HTTP process is responsive and is used as the readiness/liveness probe in the backend Deployment; it does not directly check the MongoDB dependency.
 
 In production, I would separate the readiness probe so that it checks required dependencies including MongoDB. This allows a Pod without database access to be removed from serving new user traffic.
 
