@@ -49,7 +49,7 @@ React   Node.js
       MongoDB Atlas
 ```
 
-The frontend NGINX forwards `/api/` requests to `backend-service:5050`. The backend performs record CRUD operations in the `sample_training` database on MongoDB Atlas.
+The frontend NGINX is configured to route `/api/` requests to the backend. In the EKS environment, external `/api` traffic is routed to the backend Service through Envoy Gateway and HTTPRoute.
 
 The ETL separately retrieves repository information from the GitHub API and performs an upsert on the `github_repositories` collection using `github_id`.
 
@@ -87,7 +87,9 @@ The core case requirements have been completed, while some advanced production-l
 
 Full IaC with Terraform/OpenTofu, Prometheus/Grafana-based advanced monitoring, HPA/PDB and multi-node high availability, GitOps, canary/blue-green deployment, PITR, automated restore verification, S3 Lifecycle-based automatic retention, and distributed tracing were not implemented.
 
-However, Kustomize-based environment management, controlled `RollingUpdate`, CPU/memory resource management, verifiable alert checks, Trivy image/dependency/secret scanning, and daily automated MongoDB backup to cluster-external Amazon S3 were implemented and verified in the actual EKS environment.
+Accordingly, **controlled production approval has been implemented**. Successful deployments from the `main` branch through the GitHub Actions `production` Environment are applied to EKS only after approval from an authorized reviewer.
+
+Also, Kustomize-based environment management, controlled `RollingUpdate`, CPU/memory resource management, verifiable alert checks, Trivy image/dependency/secret scanning, and daily automated MongoDB backup to cluster-external Amazon S3 were **implemented and verified** in the actual EKS environment.
 
 The omitted areas can be added separately according to production scaling, observability, release management, and disaster recovery requirements.
 
@@ -103,7 +105,7 @@ AWS EKS was selected because the application is container-based and the frontend
 
 This allowed Amazon ECR, AWS IAM, GitHub OIDC, EKS RBAC, Envoy Gateway, AWS Load Balancer, and Amazon S3 to be used together.
 
-In a production environment, I would additionally use Terraform/OpenTofu for full IaC, HPA and node autoscaling, PDB and multi-node distribution, Prometheus/Grafana, centralized secret management, HTTPS/domain management, defined backup retention, automated restore verification/PITR, and controlled release strategies.
+In the current case environment, release control has been implemented through controlled production approval. In a real production environment, I would build on the existing setup by adding full IaC with Terraform/OpenTofu, HPA and node autoscaling, PDB and multi-node distribution, Prometheus/Grafana, centralized secret management, HTTPS/domain management, defined backup retention, automated restore verification/PITR, and more advanced release strategies.
 
 ---
 
@@ -541,4 +543,4 @@ The core case requirements have been implemented and verified. In addition, the 
 
 The backup/restore implementation separates the automated production backup mechanism from the manual end-to-end restore test. The automated mechanism provides regular off-cluster backup storage, while the manual test verifies that the backup can actually be restored.
 
-Further production improvements could include full IaC, advanced monitoring and autoscaling, centralized secret management, multi-node high availability, controlled release strategies, S3 Lifecycle/PITR, automated restore verification, and regular DR drills.
+Further production improvements could include full IaC, advanced monitoring and autoscaling, centralized secret management, multi-node high availability, more advanced release strategies (e.g., canary/blue-green), S3 Lifecycle/PITR, automated restore verification, and regular DR drills.

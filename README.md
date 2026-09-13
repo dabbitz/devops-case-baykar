@@ -80,7 +80,13 @@ DevOps_Case_Final/
 └── TESLIM_KANITLARI.md                    # Teslim kanıtları
 ```
 
-## Mevcut AWS EKS Deployment
+## AWS EKS Deployment
+
+Projenin ana deployment ortamı AWS EKS'dir. Frontend, backend ve Python ETL workload'ları Kubernetes üzerinde çalışmakta; Envoy Gateway üzerinden AWS Elastic Load Balancer ile dış erişim sağlanmaktadır.
+
+Repository'de ayrıca Docker Compose ve local Kubernetes yapılandırmaları, uygulamanın geliştirme, test ve yeniden üretilebilirlik amacıyla local ortamda çalıştırılabilmesi için sağlanmıştır. Bu local yapılandırmalar, AWS EKS üzerindeki ana deployment'ın alternatifidir ve cloud ortamının yerini almaz.
+
+### Mevcut AWS EKS Deployment
 
 Projenin çalışma sırasında kullanılan AWS EKS deployment'ı üzerinden uygulamaya erişim sağlanmıştır. Aşağıdaki adreslerde yer alan AWS Load Balancer hostname'leri, public repository'de gereksiz cloud ortamı ayrıntılarını paylaşmamak amacıyla `[REDACTED]` olarak gösterilmiştir.
 
@@ -118,7 +124,7 @@ http://[REDACTED].eu-central-1.elb.amazonaws.com/edit/<document-id>
 
 > **Gerçek EKS erişim adresi:** Public repository'de Load Balancer hostname'i `[REDACTED]` olarak gösterilmiştir. Çalışma sırasında kullanılan gerçek erişim adresi teslim edilen `.zip` dosyasının içinde, projenin root'unda, bir `.txt` dosyasında paylaşılmıştır.
 
-### Güncel EKS erişim adresini bulma
+### Güncel EKS Erişim Adresini Bulma
 
 AWS Load Balancer tarafından verilen güncel hostname'i Kubernetes üzerinden terminal çıktısından öğrenebilirsiniz.
 
@@ -133,9 +139,8 @@ kubectl get svc -n envoy-gateway-system
 Örneğin:
 
 ```text
-NAME                                      TYPE           CLUSTER-IP      EXTERNAL-IP
-
-envoy-devops-case-devops-gateway-...      LoadBalancer   10.x.x.x        <AWS Load Balancer hostname>
+NAME                                  TYPE          CLUSTER-IP    EXTERNAL-IP
+envoy-devops-case-devops-gateway-...  LoadBalancer  10.x.x.x      <AWS Load Balancer hostname>
 ```
 
 Güncel hostname'i daha ayrıntılı görmek için:
@@ -156,6 +161,71 @@ http://<EXTERNAL-IP>/edit/<document-id>
 
 Dolayısıyla README'deki mevcut hostname artık geçerli değilse, yeni adresi yeniden README'ye eklemek yerine öncelikle Kubernetes Service üzerinden güncel `EXTERNAL-IP` değeri kontrol edilmelidir.
 
+### EKS Cluster Yapılandırması
+
+```text
+Cluster:
+devops-case-eks
+
+Region:
+eu-central-1
+
+Managed node group:
+devops-workers
+
+Node instance type:
+t3.small
+```
+
+AWS EKS ortamını kontrol etmek için:
+
+```powershell
+eksctl get cluster --region eu-central-1
+kubectl get nodes -o wide
+kubectl get pods -n devops-case
+kubectl get deployments -n devops-case
+kubectl get cronjobs -n devops-case
+kubectl get services -n devops-case
+```
+
+Çalışan EKS node'u Kubernetes `v1.36.3-eks-cb19647` ve Amazon Linux 2023 kullanmaktadır.
+
+### EKS Workloads
+
+```text
+Frontend → Deployment + ClusterIP Service + liveness/readiness probes
+Backend  → Deployment + ClusterIP Service + liveness/readiness probes + controlled RollingUpdate
+ETL      → CronJob
+Backup   → Daily CronJob → mongodump → Amazon S3
+Gateway  → Envoy Gateway
+Routing  → HTTPRoute
+```
+
+Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits tanımlıdır.
+
+EKS deployment'ı için ortak Kubernetes kaynakları `k8s/eks/` altında, environment-specific yapılandırmalar ise Kustomize overlay'leri altında yönetilmektedir. Ayrıntılar **Kustomize Environment Management** bölümünde açıklanmıştır.
+
+EKS üzerinde çalışan workload'ları kontrol etmek için:
+
+```powershell
+kubectl get pods -n devops-case -o wide
+kubectl get deployments -n devops-case
+kubectl get services -n devops-case
+kubectl get cronjobs -n devops-case
+kubectl get gateway -n devops-case
+kubectl get httproute -n devops-case
+```
+
+Backend ve frontend Deployment'larında liveness/readiness probe'ları tanımlanmıştır. Backend'in uygulama içi healthcheck endpoint'i `/healthcheck/`, frontend'in healthcheck endpoint'i ise `/` olarak tanımlanmıştır.
+
+Backend Deployment'ı tek node'lu EKS ortamına uygun olarak `maxSurge: 1` ve `maxUnavailable: 0` ile yapılandırılmıştır. Yeni Pod, readiness probe ile hazır olduktan sonra eski Pod sonlandırılır ve geçiş `v1 → v1 + v2 → v2` şeklinde gerçekleşir.
+
+EKS dış erişiminde `/` istekleri frontend'e, `/api` istekleri backend'e yönlendirilir. Bu nedenle backend'in `/healthcheck/` endpoint'i, Envoy Gateway üzerinden public olarak `/api/healthcheck` adresinden erişilebilir durumdadır.
+
+### EKS Gateway Yapılandırması
+
+`GatewayClass` cluster-scoped bir kaynak olduğu için EKS Kustomize base içerisinde yer almamaktadır. EKS cluster'ında mevcut olan Envoy GatewayClass yeniden kullanılmaktadır. Böylece GitHub Actions deployment rolüne gereksiz cluster-wide yetkiler verilmemektedir.
+
 ## Sistem Mimarisi
 
 Uygulamanın AWS EKS üzerindeki temel istek akışı aşağıdaki şekildedir:
@@ -175,7 +245,7 @@ Service    Service
    ↓         ↓
 React      Node.js
 + NGINX    + Express
-              ↓
+             ↓
          MongoDB Atlas
 ```
 
@@ -339,59 +409,6 @@ Secret değerleri workflow dosyasına veya source code'a hardcode edilmemektedir
 
 ---
 
-## İlk Kurulum
-
-Projenin ana deployment ortamı AWS EKS'dir. Repository'de AWS EKS cluster'ı, ECR image repository'leri ve GitHub Actions tabanlı CI/CD deployment yapısı tanımlanmıştır.
-
-Genel deployment akışı:
-
-```text
-Repository
-    ↓
-GitHub Actions
-    ↓
-Amazon ECR
-    ↓
-AWS EKS
-    ↓
-Kustomize production overlay
-    ↓
-Frontend / Backend / ETL
-```
-
-AWS EKS cluster yapılandırması:
-
-```text
-Cluster:
-devops-case-eks
-
-Region:
-eu-central-1
-
-Managed node group:
-devops-workers
-
-Node instance type:
-t3.small
-```
-
-AWS EKS ortamını kontrol etmek için:
-
-```powershell
-eksctl get cluster --region eu-central-1
-kubectl get nodes -o wide
-kubectl get pods -n devops-case
-kubectl get deployments -n devops-case
-kubectl get cronjobs -n devops-case
-kubectl get services -n devops-case
-```
-
-Cloud dış erişimi Envoy Gateway tarafından oluşturulan AWS Elastic Load Balancer üzerinden sağlanmaktadır.
-
-Local geliştirme veya test gerektiğinde aşağıdaki local çalışma yöntemleri ayrıca kullanılabilir.
-
----
-
 ## MERN Uygulamasını Çalıştırma
 
 ### Frontend
@@ -515,46 +532,6 @@ Backend healthcheck:
 ```text
 http://localhost/api/healthcheck/
 ```
-
-## AWS EKS Deployment
-
-AWS EKS deployment'ında frontend, backend ve Python ETL workload'ları Kubernetes üzerinde çalışmaktadır.
-
-```text
-Frontend → Deployment + ClusterIP Service + liveness/readiness probes
-Backend  → Deployment + ClusterIP Service + liveness/readiness probes + controlled RollingUpdate
-ETL      → CronJob
-Backup   → Daily CronJob → mongodump → Amazon S3
-Gateway  → Envoy Gateway
-Routing  → HTTPRoute
-```
-
-Backend, frontend ve ETL workload'larında CPU ve memory resource requests/limits tanımlıdır.
-
-EKS deployment'ı için ortak Kubernetes kaynakları `k8s/eks/` altında, environment-specific yapılandırmalar ise Kustomize overlay'leri altında yönetilmektedir. Ayrıntılar **Kustomize Environment Management** bölümünde açıklanmıştır.
-
-EKS üzerinde çalışan workload'ları kontrol etmek için:
-
-```powershell
-kubectl get pods -n devops-case -o wide
-kubectl get deployments -n devops-case
-kubectl get services -n devops-case
-kubectl get cronjobs -n devops-case
-kubectl get gateway -n devops-case
-kubectl get httproute -n devops-case
-```
-
-EKS dış erişiminde `/` istekleri frontend'e, `/api` istekleri backend'e yönlendirilir.
-
-Backend healthcheck:
-
-```text
-/api/healthcheck
-```
-
-AWS Load Balancer üzerinden erişilebilir durumdadır.
-
-`GatewayClass` cluster-scoped bir kaynak olduğu için EKS Kustomize base içerisinde yer almamaktadır. EKS cluster'ında mevcut olan Envoy GatewayClass yeniden kullanılmaktadır. Böylece GitHub Actions deployment rolüne gereksiz cluster-wide yetkiler verilmemektedir.
 
 ## Kustomize Environment Management
 
@@ -718,6 +695,8 @@ Trivy security scan
         ↓
 CI başarılı
         ↓
+Production approval
+        ↓
 GitHub OIDC
         ↓
 AWS IAM Role
@@ -741,7 +720,7 @@ Frontend HTTP check
 
 Pull Request açıldığında `validate-and-build` job'ı çalışır; deployment yapılmaz.
 
-`main` branch'ine yapılan başarılı push sonrasında `deploy-eks` job'ı çalışır.
+`main` branch'ine yapılan başarılı push sonrasında `deploy-eks` job'ı production approval bekleme durumuna geçer. Yetkili reviewer onayından sonra deployment adımları çalıştırılır.
 
 Deployment job'ı:
 
@@ -780,7 +759,7 @@ Geçici AWS credentials
 Amazon ECR + AWS EKS
 ```
 
-IAM Role, GitHub repository ve `main` branch'i ile sınırlı OIDC trust policy kullanmaktadır.
+IAM Role, GitHub repository'sinin `production` Environment'ı ile sınırlı OIDC trust policy kullanmaktadır. Production Environment yalnızca main branch'inden deployment kabul edecek şekilde yapılandırılmıştır.
 
 ## EKS RBAC
 

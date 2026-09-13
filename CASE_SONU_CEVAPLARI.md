@@ -49,7 +49,7 @@ React   Node.js
       MongoDB Atlas
 ```
 
-Frontend NGINX `/api/` isteklerini `backend-service:5050` adresine yönlendirir. Backend record CRUD işlemlerini MongoDB Atlas'taki `sample_training` database'inde gerçekleştirir.
+Frontend NGINX `/api/` isteklerini backend'e yönlendirecek şekilde yapılandırılmıştır. EKS ortamında dış `/api` trafiği ise Envoy Gateway ve HTTPRoute üzerinden backend Service'e yönlendirilir.
 
 ETL ayrı bir iş akışı olarak GitHub API'den repository bilgilerini alır ve `github_id` üzerinden `github_repositories` collection'ındaki kaydı upsert eder.
 
@@ -87,7 +87,9 @@ Temel case gereksinimleri tamamlanmış ve bazı üst kriterler de uygulanmışt
 
 Terraform/OpenTofu ile tam IaC, Prometheus/Grafana tabanlı gelişmiş monitoring, HPA/PDB ve çoklu node yüksek erişilebilirliği, GitOps, canary/blue-green deployment, PITR, otomatik restore verification, S3 Lifecycle tabanlı otomatik retention ve distributed tracing uygulanmamıştır.
 
-Fakat, mevcut case ortamının kapasitesine uygun olarak Kustomize ile environment yönetimi, kontrollü `RollingUpdate`, CPU/memory resource yönetimi, doğrulanabilir alarm kontrolleri, Trivy image/dependency/secret scanning ve cluster dışı Amazon S3'e günlük otomatik MongoDB backup uygulanmış ve gerçek EKS ortamında doğrulanmıştır.
+Buna karşılık **kontrollü production approval uygulanmıştır**. GitHub Actions `production` Environment'ı üzerinden `main` branch'inden gelen başarılı deployment'lar yetkili reviewer onayından sonra EKS'e uygulanmaktadır.
+
+Ayrıca, mevcut case ortamının kapasitesine uygun olarak Kustomize ile environment yönetimi, kontrollü `RollingUpdate`, CPU/memory resource yönetimi, doğrulanabilir alarm kontrolleri, Trivy image/dependency/secret scanning ve cluster dışı Amazon S3'e günlük otomatik MongoDB backup **uygulanmış** ve gerçek EKS ortamında **doğrulanmıştır**.
 
 Production ortamında kapsam dışında bırakılan özellikler; ölçekleme, gözlemlenebilirlik, release management ve disaster recovery ihtiyaçlarına göre ayrıca eklenebilir.
 
@@ -103,7 +105,7 @@ AWS EKS seçilmiştir çünkü uygulama container tabanlıdır ve frontend, back
 
 Bu seçim ile Amazon ECR, AWS IAM, GitHub OIDC, EKS RBAC, Envoy Gateway, AWS Load Balancer ve Amazon S3 birlikte kullanılabilmiştir.
 
-Production ortamında, mevcut yapının üzerine Terraform/OpenTofu ile tam IaC, HPA ve node autoscaling, PDB ve multi-node dağılım, Prometheus/Grafana, merkezi secret management, HTTPS/domain yönetimi, tanımlı backup retention, otomatik restore verification/PITR ve kontrollü release stratejileri eklerdim.
+Mevcut case ortamında kontrollü production approval ile release kontrolü uygulanmıştır. Gerçek production ortamında ise mevcut yapının üzerine Terraform/OpenTofu ile tam IaC, HPA ve node autoscaling, PDB ve multi-node dağılım, Prometheus/Grafana, merkezi secret management, HTTPS/domain yönetimi, tanımlı backup retention, otomatik restore verification/PITR ve daha gelişmiş release stratejileri eklerdim.
 
 ---
 
@@ -532,4 +534,4 @@ Ana case kriterleri uygulanmış ve doğrulanmıştır. Ayrıca Kustomize ile en
 
 Backup/restore tarafında otomatik production backup mekanizması ile manuel E2E restore testi birbirinden ayrılmıştır. Otomatik mekanizma düzenli ve cluster dışı backup sağlarken, manuel test backup'ın gerçekten geri yüklenebilir olduğunu doğrulamaktadır.
 
-Daha ileri production ihtiyaçları olarak tam IaC, gelişmiş monitoring ve autoscaling, merkezi secret management, multi-node yüksek erişilebilirlik, kontrollü release stratejileri, S3 Lifecycle/PITR, otomatik restore verification ve düzenli DR drill sonraki geliştirme alanları olarak değerlendirilebilir.
+Daha ileri production ihtiyaçları olarak tam IaC, gelişmiş monitoring ve autoscaling, merkezi secret management, multi-node yüksek erişilebilirlik, daha ileri release stratejileri (ör. canary/blue-green), S3 Lifecycle/PITR, otomatik restore verification ve düzenli DR drill sonraki geliştirme alanları olarak değerlendirilebilir.

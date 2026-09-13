@@ -8,13 +8,11 @@ Ana deployment ortamı **AWS EKS**'tir. Frontend ve backend Kubernetes `Deployme
 
 AWS ortamında dış HTTP erişimi Envoy Gateway ve HTTPRoute üzerinden sağlanmakta, Envoy Gateway'in `LoadBalancer` Service'i AWS Elastic Load Balancer tarafından dışarıya açılmaktadır.
 
-Python ETL, GitHub API üzerinden repository bilgilerini almakta ve `github_id` alanı üzerinden MongoDB'deki `github_repositories` collection'ında insert/update işlemi gerçekleştirmektedir.
-
-CI/CD GitHub Actions üzerinden çalışır. CI aşamasında frontend, backend ve Python ETL container image'ları Trivy ile OS package vulnerabilities, application dependencies ve embedded secrets açısından taranır. `main` branch'ine yapılan başarılı push sonrasında GitHub OIDC ile AWS IAM Role alınır, image'lar Amazon ECR'a gönderilir ve AWS EKS'e deploy edilir.
+CI/CD GitHub Actions üzerinden çalışmakta; başarılı `main` branch deployment'larında production deployment öncesinde **controlled production approval** uygulanmaktadır. Yetkili reviewer onayının ardından GitHub OIDC ile AWS IAM Role alınarak image'lar Amazon ECR'a gönderilmekte ve AWS EKS'e deploy edilmektedir.
 
 Yerel Docker Desktop Kubernetes ortamı geliştirme ve doğrulama amacıyla korunmuştur.
 
-MongoDB Atlas verileri ayrıca AWS EKS üzerinde çalışan günlük bir Kubernetes CronJob ile `mongodump` kullanılarak alınmakta ve Amazon S3'te timestamp'li arşiv dosyaları olarak saklanmaktadır.
+MongoDB Atlas verileri ayrıca günlük bir Kubernetes CronJob ile `mongodump` kullanılarak Amazon S3'e yedeklenmektedir.
 
 ---
 
@@ -58,23 +56,33 @@ flowchart TB
     Backend -->|"CRUD"| Mongo
 
     subgraph ETL["Python ETL - Kubernetes CronJob"]
+
         GitHub["GitHub API"]
+
         ETLJob["ETL Job<br/>Hourly"]
+
         GitHub --> ETLJob
+
     end
 
     ETLJob -->|"insert / update<br/>github_id"| Mongo
 
     subgraph Backup["MongoDB Backup - Kubernetes CronJob"]
+
         BackupJob["mongodb-backup<br/>Her gün 02:00 Avrupa/İstanbul"]
+
         Dump["mongodump<br/>.archive.gz"]
+
         S3["Amazon S3<br/>sample_training/"]
 
         BackupJob --> Dump
+
         Dump --> S3
+
     end
 
     Mongo -->|"backup"| BackupJob
+
 ```
 
 ---
@@ -103,13 +111,13 @@ React + NGINX
 
 şeklinde çalışmaktadır.
 
-`frontend-service` `ClusterIP` tipindedir; dış erişim doğrudan Pod'a değil Gateway üzerinden sağlanmaktadır.
+`frontend-service` `ClusterIP` tipindedir ve dış erişim Gateway üzerinden sağlanmaktadır.
 
-Frontend Deployment'ında `/` endpoint'i üzerinden liveness ve readiness probe'ları tanımlanmıştır. Ayrıca, CPU ve memory resource requests/limits tanımlanmıştır. Kaynak ihtiyaçları ve kullanım sınırları Kubernetes tarafından yönetilmektedir.
+Frontend Deployment'ında `/` endpoint'i üzerinden liveness ve readiness probe'ları tanımlanmıştır. CPU ve memory resource requests/limits uygulanmıştır.
 
----
+**---**
 
-### 3.2 Backend
+**### 3.2 Backend**
 
 Backend Node.js ve Express kullanmaktadır.
 
@@ -129,13 +137,14 @@ backend Deployment
 backend-service
         ↓
 Node.js / Express
+
 ```
 
 şeklinde çalışmaktadır.
 
 `backend-service` `ClusterIP` tipindedir ve doğrudan internete açılmamıştır.
 
-Backend Deployment'ında `/api/healthcheck/` endpoint'i üzerinden liveness ve readiness probe'ları tanımlanmıştır. CPU ve memory resource requests/limits uygulanmıştır.
+Backend Deployment'ında liveness ve readiness probe'ları `/api/healthcheck/` endpoint'i üzerinden tanımlanmıştır. CPU ve memory resource requests/limits uygulanmıştır.
 
 ---
 
@@ -189,7 +198,7 @@ ETL schedule:
 0 * * * *
 ```
 
-CronJob `Europe/Istanbul` timezone'u kullanarak saatlik çalışmaktadır.
+CronJob `Avrupa/İstanbul` timezone'u kullanarak saatlik çalışmaktadır.
 
 Duplicate kayıtları önlemek için GitHub repository ID'si olan `github_id` benzersiz kayıt anahtarı olarak kullanılmaktadır.
 
@@ -199,7 +208,7 @@ ETL CronJob'unda CPU ve memory resource requests/limits tanımlanmıştır. Cron
 
 ---
 
-## 4. Web İstek Akışı
+## 4. Ağ ve Web İstek Akışı
 
 AWS EKS üzerindeki normal kullanıcı trafiği:
 
@@ -233,7 +242,18 @@ backend-service:5050
 
 adresine yönlendirmektedir.
 
-Bu yapı sayesinde backend Service doğrudan internetten erişilebilir durumda değildir.
+EKS ortamında dış `/api` trafiği ise Envoy Gateway ve HTTPRoute üzerinden backend Service'e yönlendirilir.
+
+Frontend ve backend Service'leri `ClusterIP` tipindedir.
+
+Bu yapı sayesinde:
+
+- Backend doğrudan internete açılmaz.
+- Frontend Service NodePort olarak expose edilmez.
+- Her servis için ayrı bir cloud Load Balancer oluşturulmaz.
+- Dış trafik merkezi olarak Envoy Gateway üzerinden yönetilir.
+
+MongoDB Atlas ise cluster dışındaki managed database olarak kullanılır.
 
 ---
 
@@ -305,38 +325,12 @@ overlays/test/
 overlays/prod/
         ↓
 Environment-specific configuration
+
 ```
 
 ---
 
-## 7. Ağ ve Erişim Modeli
-
-Frontend ve backend Service'leri `ClusterIP` tipindedir.
-
-```text
-Internet
-   ↓
-AWS Load Balancer
-   ↓
-Envoy Gateway
-   ↓
-HTTPRoute
-   ├── /      → frontend-service
-   └── /api/* → backend-service
-```
-
-Bu yapı sayesinde:
-
-- Backend doğrudan internete açılmaz.
-- Frontend Service NodePort olarak expose edilmez.
-- Her servis için ayrı bir cloud Load Balancer oluşturulmaz.
-- Dış trafik merkezi olarak Envoy Gateway üzerinden yönetilir.
-
-MongoDB Atlas ise cluster dışındaki managed database olarak kullanılır.
-
----
-
-## 8. Konfigürasyon ve Secret Yönetimi
+## 7. Konfigürasyon ve Secret Yönetimi
 
 Hassas bilgiler source code veya Docker image içerisinde tutulmamaktadır.
 
@@ -368,7 +362,7 @@ Gerçek credential, token veya private key repository içerisinde tutulmamaktad�
 
 ---
 
-## 9. Container Güvenliği
+## 8. Container Güvenliği
 
 Frontend, backend ve ETL container'ları root kullanıcıyla çalıştırılmamaktadır.
 
@@ -398,7 +392,7 @@ Bu kontroller container privilege seviyesini azaltmak ve privilege escalation ri
 
 ---
 
-## 10. Healthcheck ve Operasyonel Doğrulama
+## 9. Healthcheck ve Operasyonel Doğrulama
 
 Backend healthcheck endpoint'i:
 
@@ -409,6 +403,8 @@ GET /healthcheck/
 şeklindedir.
 
 Backend Deployment'ında bu endpoint hem liveness hem de readiness probe olarak kullanılmaktadır. Frontend Deployment'ında ise `/` endpoint'i liveness ve readiness probe olarak kullanılmaktadır.
+
+EKS ortamında backend healthcheck endpoint'i Envoy Gateway üzerinden `/api/healthcheck` adresine yönlendirilir.
 
 Bu probe'lar uygulama process'lerinin HTTP üzerinden erişilebilir ve trafik almaya hazır olup olmadığını kontrol etmektedir. Backend healthcheck MongoDB dependency'sini doğrudan doğrulamaz.
 
@@ -428,7 +424,7 @@ Ayrıca ETL CronJob ve Job geçmişi Kubernetes üzerinden kontrol edilmektedir.
 
 ---
 
-## 11. CI/CD Mimarisi
+## 10. CI/CD Mimarisi
 
 CI/CD GitHub Actions üzerinde çalışmaktadır.
 
@@ -450,12 +446,16 @@ Docker image build validation
 Trivy security scan
 ```
 
-`main` branch'ine başarılı push sonrasında gerçek cloud deployment gerçekleştirilir:
+`main` branch'ine başarılı push sonrasında gerçek cloud deployment gerçekleştirilir. Production deployment, GitHub Actions `production` Environment'ında tanımlı **controlled production approval** mekanizması nedeniyle yetkili reviewer onayı olmadan EKS'e uygulanmaz.
+
+Deployment akışı:
 
 ```text
 main push
    ↓
 CI validation
+   ↓
+Production approval
    ↓
 GitHub OIDC
    ↓
@@ -478,17 +478,20 @@ Frontend HTTP check
 
 Deployment job'ı:
 
-- GitHub OIDC ile AWS IAM Role'u assume eder.
+- GitHub Actions `production` Environment'ı üzerinden yetkili reviewer onayını bekler.
+- Onay sonrasında GitHub OIDC ile AWS IAM Role'u assume eder.
 - Frontend, backend ve ETL image'larını build eder.
 - Image'ları Git commit SHA ile tag'ler.
 - Image'ları Amazon ECR'a push eder.
 - EKS kubeconfig'i oluşturur.
 - Kubernetes Secret kaynaklarını günceller.
-- Production, Kustomize overlay'ini (`k8s/overlays/prod/`) server-side dry-run ile doğrular.
+- Production Kustomize overlay'ini (`k8s/overlays/prod/`) server-side dry-run ile doğrular.
 - Production overlay'ini EKS'e uygular.
 - Deployment image'larını commit SHA ile günceller.
 - Rollout ve dış erişim kontrollerini gerçekleştirir.
 - Gateway ve HTTPRoute kaynaklarını uygular.
+
+Yetkili reviewer onayı alınmadığı sürece production deployment adımları çalıştırılmaz.
 
 CI validation başarısız olursa deployment job'ı çalıştırılmaz.
 
@@ -496,7 +499,7 @@ CI aşamasında Trivy tarafından gerçekleştirilen container security scan son
 
 ---
 
-## 12. AWS EKS ve Amazon ECR
+## 11. AWS EKS ve Amazon ECR
 
 Ana Kubernetes ortamı:
 
@@ -512,21 +515,6 @@ devops-workers
 
 Node Type:
 t3.small
-```
-
-```text
-EKS için ortak Kubernetes kaynakları:
-k8s/eks/
-```
-
-altında bulunmaktadır.
-
-Environment-specific ayarlar ise Kustomize overlay'leri ile yönetilmektedir:
-
-```text
-k8s/overlays/dev/
-k8s/overlays/test/
-k8s/overlays/prod/
 ```
 
 AWS production deployment `k8s/overlays/prod/` üzerinden gerçekleştirilmektedir.
@@ -551,7 +539,7 @@ Bu yapı deployed image ile source commit arasında doğrudan ilişki kurulması
 
 ---
 
-## 13. GitHub OIDC ve AWS Authentication
+## 12. GitHub OIDC ve AWS Authentication
 
 GitHub Actions AWS erişiminde uzun ömürlü AWS access key kullanılmamaktadır.
 
@@ -569,13 +557,15 @@ Temporary AWS credentials
 Amazon ECR + AWS EKS
 ```
 
-IAM Role'un OIDC trust policy'si ilgili GitHub repository ve `main` branch'i ile sınırlandırılmıştır.
+IAM Role'un OIDC trust policy'si ilgili GitHub repository'nin `production` Environment'ı ile sınırlandırılmıştır. Production Environment yalnızca `main` branch'inden gelen deployment'ları kabul edecek şekilde yapılandırılmıştır.
+
+Production deployment'ın EKS'e uygulanmasından önce GitHub Actions `production` Environment'ı üzerinden yetkili reviewer onayı gerekmektedir.
 
 EKS tarafında ayrıca EKS Access Entry ve namespace-scoped Kubernetes RBAC kullanılmaktadır.
 
 ---
 
-## 14. Kubernetes RBAC
+**## 13. Kubernetes RBAC**
 
 GitHub Actions IAM Role'u EKS Access Entry aracılığıyla:
 
@@ -603,11 +593,11 @@ k8s/eks/cd-rbac.yaml
 
 ---
 
-## 15. Veri Kalıcılığı ve Backup
+## 14. Veri Kalıcılığı ve Backup
 
 MongoDB, uygulamanın kalıcı veri katmanıdır ve MongoDB Atlas üzerinde tutulmaktadır.
 
-### 15.1 Otomatik Backup
+### 14.1 Otomatik Backup
 
 Production ortamında MongoDB backup işlemi AWS EKS üzerinde çalışan `mongodb-backup` Kubernetes CronJob ile günlük olarak otomatikleştirilmiştir.
 
@@ -636,7 +626,7 @@ CronJob schedule:
 Timezone:
 
 ```text
-Europe/Istanbul
+Avrupa/İstanbul
 ```
 
 Backup dosyaları UTC timestamp içeren ayrı birer arşiv dosyaları olarak oluşturulmaktadır.
@@ -671,7 +661,7 @@ Kubernetes CronJob geçmişinde başarılı ve başarısız Job'lar için sını
 
 Bu case kapsamında S3 üzerinde otomatik Lifecycle tabanlı object retention/silme politikası uygulanmamıştır.
 
-### 15.2 Manuel Local Backup ve Restore
+### 14.2 Manuel Local Backup ve Restore
 
 Otomatik production backup mekanizmasına ek olarak backup ve restore akışı manuel olarak local ortamda da test edilebilmektedir.
 
@@ -729,7 +719,7 @@ içerisinde detaylandırılmıştır.
 
 ---
 
-## 16. Yerel Kubernetes Ortamı
+## 15. Yerel Kubernetes Ortamı
 
 AWS EKS ana deployment ortamıdır.
 
@@ -751,7 +741,7 @@ Bu yapı cloud deployment'ın alternatifi değil, geliştirme ve doğrulama orta
 
 ---
 
-## 17. Sistem Özeti
+## 16. Sistem Özeti
 
 Sistem sorumlulukları:
 
@@ -796,4 +786,4 @@ GitHub OIDC + AWS IAM
     → Cloud authentication
 ```
 
-Bu ayrıştırma sayesinde frontend, backend ve ETL bağımsız container image'ları ve Kubernetes workload'ları olarak yönetilebilmekte; CI/CD üzerinden source commit ile ilişkilendirilmiş image'lar AWS EKS'e otomatik olarak deploy edilebilmekte ve MongoDB verileri günlük olarak cluster dışındaki Amazon S3 storage'a yedeklenebilmektedir.
+Bu ayrıştırma sayesinde frontend, backend ve ETL bağımsız container image'ları ve Kubernetes workload'ları olarak yönetilebilmekte; CI/CD üzerinden source commit ile ilişkilendirilmiş image'lar **controlled production approval sonrasında** AWS EKS'e deploy edilebilmekte ve MongoDB verileri günlük olarak cluster dışındaki Amazon S3 storage'a yedeklenebilmektedir.

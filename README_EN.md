@@ -80,7 +80,13 @@ DevOps_Case_Final/
 └── TESLIM_KANITLARI.md                    # Turkish submission evidence
 ```
 
-## Current AWS EKS Deployment
+## AWS EKS Deployment
+
+The primary deployment environment of the project is AWS EKS. The frontend, backend, and Python ETL workloads run on Kubernetes, with external access provided through an AWS Elastic Load Balancer via Envoy Gateway.
+
+The repository also includes Docker Compose and local Kubernetes configurations so that the application can be run locally for development, testing, and reproducibility purposes. These local configurations are alternatives to the primary AWS EKS deployment and do not replace the cloud environment.
+
+### Current AWS EKS Deployment
 
 The application was accessed through the AWS EKS deployment used during the project. The AWS Load Balancer hostnames shown below are displayed as `[REDACTED]` in the public repository to avoid unnecessarily exposing cloud environment details.
 
@@ -133,9 +139,8 @@ In the output, find the Envoy Gateway Service whose `TYPE` is `LoadBalancer`. Th
 For example:
 
 ```text
-NAME                                      TYPE           CLUSTER-IP      EXTERNAL-IP
-
-envoy-devops-case-devops-gateway-...      LoadBalancer   10.x.x.x        <AWS Load Balancer hostname>
+NAME                                  TYPE          CLUSTER-IP    EXTERNAL-IP
+envoy-devops-case-devops-gateway-... LoadBalancer  10.x.x.x     <AWS Load Balancer hostname>
 ```
 
 To view the current hostname in more detail:
@@ -156,6 +161,71 @@ http://<EXTERNAL-IP>/edit/<document-id>
 
 Therefore, if the hostname listed in this README is no longer valid, check the current `EXTERNAL-IP` value from the Kubernetes Service before attempting to access the application.
 
+### EKS Cluster Configuration
+
+```text
+Cluster:
+devops-case-eks
+
+Region:
+eu-central-1
+
+Managed node group:
+devops-workers
+
+Node instance type:
+t3.small
+```
+
+To inspect the AWS EKS environment:
+
+```powershell
+eksctl get cluster --region eu-central-1
+kubectl get nodes -o wide
+kubectl get pods -n devops-case
+kubectl get deployments -n devops-case
+kubectl get cronjobs -n devops-case
+kubectl get services -n devops-case
+```
+
+The active EKS node runs Kubernetes `v1.36.3-eks-cb19647` on Amazon Linux 2023.
+
+### EKS Workloads
+
+```text
+Frontend → Deployment + ClusterIP Service + liveness/readiness probes
+Backend  → Deployment + ClusterIP Service + liveness/readiness probes + controlled RollingUpdate
+ETL      → CronJob
+Backup   → Daily CronJob → mongodump → Amazon S3
+Gateway  → Envoy Gateway
+Routing  → HTTPRoute
+```
+
+CPU and memory resource requests/limits are defined for the backend, frontend, and ETL workloads.
+
+Shared Kubernetes resources for the EKS deployment are located under `k8s/eks/`, while environment-specific configurations are managed through Kustomize overlays. See **Kustomize Environment Management** for details.
+
+To inspect workloads running on EKS:
+
+```powershell
+kubectl get pods -n devops-case -o wide
+kubectl get deployments -n devops-case
+kubectl get services -n devops-case
+kubectl get cronjobs -n devops-case
+kubectl get gateway -n devops-case
+kubectl get httproute -n devops-case
+```
+
+Liveness/readiness probes are defined for the backend and frontend Deployments. The backend application healthcheck endpoint is `/healthcheck/`, while the frontend healthcheck endpoint is `/`.
+
+The backend Deployment is configured with `maxSurge: 1` and `maxUnavailable: 0` for the single-node EKS environment. The old Pod is terminated only after the new Pod is ready according to the readiness probe, resulting in a `v1 → v1 + v2 → v2` transition.
+
+For external EKS access, requests to `/` are routed to the frontend and requests to `/api` are routed to the backend. Therefore, the backend `/healthcheck/` endpoint is publicly accessible through Envoy Gateway at `/api/healthcheck`.
+
+### EKS Gateway Configuration
+
+Because `GatewayClass` is a cluster-scoped resource, it is not included in the EKS Kustomize base. The existing Envoy GatewayClass in the EKS cluster is reused, avoiding unnecessary cluster-wide permissions for the GitHub Actions deployment role.
+
 ## System Architecture
 
 The main request flow of the application on AWS EKS is as follows:
@@ -175,8 +245,8 @@ Service    Service
    ↓         ↓
 React      Node.js
 + NGINX    + Express
-              ↓
-         MongoDB Atlas
+             ↓
+        MongoDB Atlas
 ```
 
 The Python ETL runs as a separate workflow, retrieving repository information from the GitHub API and updating the `github_repositories` collection in MongoDB.
@@ -189,7 +259,7 @@ Python ETL
 MongoDB Atlas
 ```
 
-Also, a backup of MongoDB Atlas data is taken daily and automatically:
+MongoDB Atlas data is also backed up automatically on a daily basis:
 
 ```text
 MongoDB Atlas
@@ -229,16 +299,16 @@ Detailed architecture diagram and component descriptions:
 - Envoy Gateway
 - Helm
 
-> Helm is used for installing Kubernetes dependencies such as Envoy Gateway. The application's own Kubernetes resources are managed using Kustomize.
+> Helm is used to install Kubernetes dependencies such as Envoy Gateway. The application's own Kubernetes resources are managed using Kustomize.
 
 ## Requirements
 
-To use the existing deployment running on AWS, the following are required:
+To use the existing deployment running on AWS:
 
 - An AWS account with the necessary permissions
 - Access to the GitHub repository
 
-For local execution or development, the following can additionally be used:
+For local execution or development:
 
 - Docker Desktop (Kubernetes enabled)
 - Docker Compose
@@ -330,59 +400,6 @@ For local Kubernetes deployment, the `setup-k8s.ps1` script reads sensitive valu
 For AWS EKS deployment, Secret values are obtained from GitHub Actions Secrets and transferred to Kubernetes Secret resources in the EKS namespace.
 
 Secret values are not hardcoded into the workflow file or source code.
-
----
-
-## Initial Setup
-
-The primary deployment environment of the project is AWS EKS. The repository defines the AWS EKS cluster, ECR image repositories, and GitHub Actions-based CI/CD deployment structure.
-
-General deployment flow:
-
-```text
-Repository
-    ↓
-GitHub Actions
-    ↓
-Amazon ECR
-    ↓
-AWS EKS
-    ↓
-Kustomize production overlay
-    ↓
-Frontend / Backend / ETL
-```
-
-AWS EKS cluster configuration:
-
-```text
-Cluster:
-devops-case-eks
-
-Region:
-eu-central-1
-
-Managed node group:
-devops-workers
-
-Node instance type:
-t3.small
-```
-
-To inspect the AWS EKS environment:
-
-```powershell
-eksctl get cluster --region eu-central-1
-kubectl get nodes -o wide
-kubectl get pods -n devops-case
-kubectl get deployments -n devops-case
-kubectl get cronjobs -n devops-case
-kubectl get services -n devops-case
-```
-
-External cloud access is provided through the AWS Elastic Load Balancer created by Envoy Gateway.
-
-The local execution methods below can still be used when local development or testing is required.
 
 ---
 
@@ -505,48 +522,6 @@ Backend healthcheck:
 ```text
 http://localhost/api/healthcheck/
 ```
-
-## AWS EKS Deployment
-
-The AWS EKS deployment runs the frontend, backend, and Python ETL workloads on Kubernetes.
-
-```text
-Frontend → Deployment + ClusterIP Service + liveness/readiness probes
-Backend  → Deployment + ClusterIP Service + liveness/readiness probes + controlled RollingUpdate
-ETL      → CronJob
-Backup   → Günlük CronJob → mongodump → Amazon S3
-Gateway  → Envoy Gateway
-Routing  → HTTPRoute
-```
-
-Container images are pulled from Amazon ECR.
-
-CPU and memory resource requests/limits are defined for the backend, frontend, and ETL workloads.
-
-Environment-specific Kubernetes configuration is managed through Kustomize overlays; see **Kustomize Environment Management** for details.
-
-To inspect workloads running on EKS:
-
-```powershell
-kubectl get pods -n devops-case -o wide
-kubectl get deployments -n devops-case
-kubectl get services -n devops-case
-kubectl get cronjobs -n devops-case
-kubectl get gateway -n devops-case
-kubectl get httproute -n devops-case
-```
-
-For external EKS access, requests to `/` are routed to the frontend and requests to `/api` are routed to the backend.
-
-Backend healthcheck:
-
-```text
-/api/healthcheck
-```
-
-This endpoint is accessible through the AWS Load Balancer.
-
-The `GatewayClass` is a cluster-scoped resource and is therefore not included in the EKS Kustomize base. The existing Envoy GatewayClass in the EKS cluster is reused, avoiding unnecessary cluster-wide permissions for the GitHub Actions deployment role.
 
 ## Kustomize Environment Management
 
@@ -706,6 +681,8 @@ Trivy security scan
         ↓
 CI successful
         ↓
+Production approval
+        ↓
 GitHub OIDC
         ↓
 AWS IAM Role
@@ -729,7 +706,7 @@ Frontend HTTP check
 
 When a Pull Request is opened, the `validate-and-build` job runs and deployment is not performed.
 
-After a successful push to the `main` branch, the `deploy-eks` job runs.
+After a successful push to the `main` branch, the `deploy-eks` job enters the production approval state. After approval from an authorized reviewer, the deployment steps are executed.
 
 The deployment job:
 
@@ -740,7 +717,7 @@ The deployment job:
 5. Scans the frontend, backend, and ETL images with Trivy for OS package vulnerabilities, application dependencies, and embedded secrets.
 6. Creates the kubeconfig for the EKS cluster.
 7. Updates the Kubernetes Secret resources.
-8. Validates the production Kustomize overlay using `kubectl apply --dry-run=server -k k8s/overlays/prod`.
+8. Validates the `k8s/overlays/prod` Kustomize overlay using `kubectl apply --dry-run=server -k k8s/overlays/prod`.
 9. Applies the production overlay using `kubectl apply -k k8s/overlays/prod`.
 10. Updates the Deployment images to the corresponding commit SHA tags.
 11. Checks the backend and frontend rollout status.
@@ -768,7 +745,7 @@ Temporary AWS credentials
 Amazon ECR + AWS EKS
 ```
 
-The IAM Role uses an OIDC trust policy restricted to the GitHub repository and the `main` branch.
+The IAM Role uses an OIDC trust policy restricted to the repository's `production` Environment. The `production` Environment is configured to allow deployments only from the `main` branch.
 
 ## EKS RBAC
 
@@ -970,7 +947,7 @@ Removing application workloads from EKS does not automatically delete the EKS cl
 
 The AWS EKS case environment runs on a single `t3.small` worker node. Due to Free Tier resource constraints, system components and application workloads share the same node.
 
-Because of these resource constraints, application workload replicas are kept at `1` across environments and resource requests are intentionally kept low. A production environment would typically use higher capacity, multiple worker nodes, and an appropriate high-availability configuration.
+Because of these resource constraints, application workload replicas are kept at `1` across environments and resource requests are intentionally kept low. Higher capacity, multiple worker nodes, and an appropriate high-availability configuration would typically be used in a real production environment.
 
 ## Documentation and Evidence
 
@@ -990,7 +967,7 @@ Case answers:
 
 `CASE_END_ANSWERS.md`
 
-Evidence:
+Submission evidence:
 
 `SUBMISSION_EVIDENCE.md`
 
