@@ -122,7 +122,7 @@ http://[REDACTED].eu-central-1.elb.amazonaws.com/edit/<document-id>
 
 > **Important:** The addresses used belong to the AWS Load Balancer created during this project. They should **not be considered permanent production URLs**. In particular, if the EKS cluster, Envoy Gateway, or Load Balancer is recreated, AWS may assign a new hostname. The addresses may also become inaccessible if the AWS resources used for the project are removed after submission.
 
-> **Actual EKS access address:** In the public repository, the Load Balancer hostname is shown as `[REDACTED]`. The actual access address used during the project is provided in a `.txt` file located in the project root of the submitted `.zip` file.
+> **Actual EKS access address:** In the public repository, the Load Balancer hostname is shown as `[REDACTED]`. The actual access address used during the project is provided in the `aws_url.txt` file located in the project root of the submitted `.zip` file.
 
 ### Finding the Current EKS Access Address
 

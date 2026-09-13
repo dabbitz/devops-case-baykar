@@ -83,15 +83,19 @@ Hangi sorunları bilinçli olarak düzeltmediniz veya kapsam dışında bırakt�
 
 **Cevap:**
 
-Temel case gereksinimleri tamamlanmış ve bazı üst kriterler de uygulanmıştır. Buna karşılık tam production ölçeği gerektiren bazı ileri seviye özellikler kapsam dışında bırakılmıştır.
+Temel case gereksinimleri ve seçilen üst kriterler (2, 3, 4, 5, 6, 7) tamamlanmıştır. **Birinci üst kriter olan tam Infrastructure as Code yaklaşımı ise bu case kapsamında uygulanmamıştır; EKS altyapısı mevcut declarative yapılandırma ve AWS/EKS araçlarıyla yönetilmiş, ancak Terraform/OpenTofu tabanlı tam IaC çözümü geliştirilmemiştir.**
 
-Terraform/OpenTofu ile tam IaC, Prometheus/Grafana tabanlı gelişmiş monitoring, HPA/PDB ve çoklu node yüksek erişilebilirliği, GitOps, canary/blue-green deployment, PITR, otomatik restore verification, S3 Lifecycle tabanlı otomatik retention ve distributed tracing uygulanmamıştır.
+Bunun dışında aşağıdaki ileri seviye production özellikleri uygulanmamıştır. Bu özelliklerin sağladığı ihtiyaçlar, case'in mevcut ölçeği ve gereksinimleri doğrultusunda daha basit ve uygun yaklaşımlarla karşılanmıştır:
 
-Buna karşılık **kontrollü production approval uygulanmıştır**. GitHub Actions `production` Environment'ı üzerinden `main` branch'inden gelen başarılı deployment'lar yetkili reviewer onayından sonra EKS'e uygulanmaktadır.
+- **Prometheus/Grafana tabanlı merkezi monitoring:** Merkezi monitoring kurulmamış, bunun yerine ETL ve healthcheck kontrollerine dayalı doğrulanabilir alarm senaryoları uygulanmıştır.
+- **HPA/PDB ve çoklu node yüksek erişilebilirlik:** Mevcut tek node'lu kaynak yapısı korunmuş; deployment dayanıklılığı kontrollü `RollingUpdate`, readiness/liveness probe'ları ve resource yönetimi ile sağlanmıştır.
+- **GitOps tabanlı deployment:** Argo CD/Flux gibi bir GitOps controller kullanılmamış; production release kontrolü GitHub Actions, Kustomize ve manuel approval mekanizması ile sağlanmıştır.
+- **Canary / blue-green deployment:** Bu release modelleri yerine kontrollü `RollingUpdate` kullanılmıştır.
+- **PITR ve otomatik restore verification:** Günlük otomatik S3 backup ve ayrıca manuel uçtan uca restore testi uygulanarak backup ve geri yüklenebilirlik doğrulanmıştır.
+- **S3 Lifecycle tabanlı otomatik retention:** Formal retention politikası tanımlanmamış; mevcut case kapsamında günlük backup'ların S3 üzerinde ayrı archive object'leri olarak saklanması yeterli görülmüştür.
+- **Distributed tracing:** Merkezi tracing altyapısı kurulmamış; mevcut ölçekte log, healthcheck, rollout ve alarm kontrolleri operasyonel teşhis için kullanılmıştır.
 
-Ayrıca, mevcut case ortamının kapasitesine uygun olarak Kustomize ile environment yönetimi, kontrollü `RollingUpdate`, CPU/memory resource yönetimi, doğrulanabilir alarm kontrolleri, Trivy image/dependency/secret scanning ve cluster dışı Amazon S3'e günlük otomatik MongoDB backup **uygulanmış** ve gerçek EKS ortamında **doğrulanmıştır**.
-
-Production ortamında kapsam dışında bırakılan özellikler; ölçekleme, gözlemlenebilirlik, release management ve disaster recovery ihtiyaçlarına göre ayrıca eklenebilir.
+Bu tercihler, case kapsamındaki gereksinimleri gereksiz altyapı ve operasyonel karmaşıklık eklemeden karşılamaya yönelik olarak yapılmıştır.
 
 ---
 
@@ -514,7 +518,7 @@ Kanıtlar: `TESLIM_KANITLARI.md`, `6. Backup ve Restore` bölümünden:
 
 Otomatik scheduled backup kanıtı:
 
-`docs/screenshots/47-backup-cronjob-scheduled-success.png`
+`docs/screenshots/49-backup-cronjob-scheduled-success.png`
 
 ---
 
@@ -528,7 +532,7 @@ Case kapsamında özellikle belirtmek istediğiniz ek kararlar, sınırlamalar v
 
 CI/CD akışında GitHub OIDC ile AWS IAM Role kullanılmış, image'lar commit SHA ile Amazon ECR'a gönderilmiş ve production deployment `k8s/overlays/prod` Kustomize overlay'i üzerinden gerçekleştirilmiştir.
 
-Deployment öncesinde Kustomize çıktısı server-side dry-run ile doğrulanmış, ardından production overlay EKS'e uygulanmıştır. Deployment sonrasında image sürümleri commit SHA ile güncellenmiş, rollout ve healthcheck kontrolleri gerçekleştirilmiştir.
+Deployment öncesinde Kustomize çıktısı server-side dry-run ile doğrulanmış, ardından production overlay EKS'ye uygulanmıştır. Deployment sonrasında image sürümleri commit SHA ile güncellenmiş, rollout ve healthcheck kontrolleri gerçekleştirilmiştir.
 
 Ana case kriterleri uygulanmış ve doğrulanmıştır. Ayrıca Kustomize ile environment yönetimi, kontrollü RollingUpdate ve kapasiteye uygun workload yapılandırması, doğrulanmış alarm senaryoları, Trivy ile image/dependency/secret scanning ve cluster dışı Amazon S3'e günlük otomatik MongoDB backup uygulanmıştır.
 

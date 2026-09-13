@@ -47,9 +47,9 @@ Ekran görüntülerinde gerçek credential, token, parola, private key veya hass
 - **ECR image'ları (backend):** `docs/screenshots/15-ecr-images-backend.png`
 - **ECR image'ları (frontend):** `docs/screenshots/16-ecr-images-frontend.png`
 - **ECR image'ları (etl):** `docs/screenshots/17-ecr-images-etl.png`
-- **Health check ve resource tanımları (backend):** `docs/screenshots/39-eks-healthchecks-resources-backend.png`
-- **Health check ve resource tanımları (frontend):** `docs/screenshots/40-eks-healthchecks-resources-frontend.png`
-- **Health check ve resource tanımları (etl):** `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
+- **Health check ve resource tanımları (backend):** `docs/screenshots/41-eks-healthchecks-resources-backend.png`
+- **Health check ve resource tanımları (frontend):** `docs/screenshots/42-eks-healthchecks-resources-frontend.png`
+- **Health check ve resource tanımları (etl):** `docs/screenshots/43-eks-cpu-memory-limits-etl.png`
 - **Açıklama:** Uygulama AWS EKS üzerinde `devops-case-eks` cluster'ına deploy edilmiştir. Backend ve frontend Deployment'ları, Service kaynakları ve Python ETL CronJob'u EKS üzerinde çalışmaktadır. Container image'ları Amazon ECR üzerinden çekilmektedir.
 
 Backend ve frontend Deployment'larında liveness/readiness probe'ları, tüm ana workload'larda ise CPU ve memory resource requests/limits tanımlanmıştır. Backend Deployment'ında `maxSurge: 1` ve `maxUnavailable: 0` ile kontrollü RollingUpdate yapılandırılmıştır (7.2'de detaylandırılmıştır).
@@ -115,7 +115,7 @@ Aşağıdaki altı adımın tamamı kanıtlanmalıdır. Adımların aynı kayıt
 
 Bu bölümdeki 6.1–6.6 adımları, backup ve restore mekanizmasının gerçek veri üzerinde uçtan uca doğrulandığı **manuel uçtan uca test senaryosunu** göstermektedir.
 
-Production ortamındaki düzenli backup mekanizması ise ayrıca **7.7 – Üst Kriter #7** altında gösterilen otomatik EKS CronJob → Amazon S3 akışıdır.
+Production ortamındaki düzenli backup mekanizması ise ayrıca **7.6 – Üst Kriter #7** altında gösterilen otomatik EKS CronJob → Amazon S3 akışıdır.
 
 Aşağıdaki altı adım aynı `sample_training` database'i üzerinde ve sırayla gerçekleştirilmiştir.
 
@@ -197,11 +197,11 @@ Production ortamındaki otomatik backup'lar ise local `backups/` dizininde deği
 
 > Runbook, RPO/RTO hedefleri, backup schedule ve retention sınırlamaları `docs/backup-restore.md` içinde dokümante edilmiştir.
 
----
-
 ## 7. Logging, Monitoring ve Üst Kriterler
 
-Uygulanan logging, monitoring, alarm, güvenlik, release yönetimi ve diğer üst kriterlere ait kanıtlar aşağıda verilmiştir.
+Uyguladığınız logging, monitoring, alarm, Helm, Terraform, güvenlik taraması veya diğer üst kriterlere ait kanıtları ekleyin.
+
+Uygulanan logging, monitoring, alarm, güvenlik, release yönetimi ve diğer üst kriterlere ait kanıtlar aşağıda verilmiştir. 2, 3, 4, 5, 6 ve 7'nci üst kriterler tamamlanmıştır.
 
 ### 7.1 Üst Kriter #2 - Paketleme ve Ortam Yönetimi: Kustomize
 
@@ -241,13 +241,13 @@ Uygulanan logging, monitoring, alarm, güvenlik, release yönetimi ve diğer üs
 
 ### 7.5 Üst Kriter #6 - GitOps ve Release Stratejisi: Kontrollü Production Onayı
 
-- **Production approval bekleme görseli:** `docs/screenshots/47-production-approval-pending.png`
-- **Production approval sonrası deployment görseli:** `docs/screenshots/48-production-approval-approved.png`
+- **Production approval bekleme görseli:** `docs/screenshots/47-production-deployment-approval-pending.png`
+- **Production approval sonrası deployment görseli:** `docs/screenshots/48-production-deployment-approval-granted.png`
 - **Açıklama:** Production deployment'ı GitHub Actions üzerinde `production` Environment protection ile kontrollü production onayına bağlanmıştır. `main` branch'ine yapılan başarılı push sonrasında `validate-and-build` job'ı tamamlanmakta, ardından `deploy-eks` job'ı production approval bekleme durumuna geçmektedir.
 
-  Production deployment'ı yetkili reviewer tarafından onaylanmadan AWS EKS'e deployment yapılmamaktadır. Onay verildikten sonra `deploy-eks` job'ı çalıştırılmakta, ECR image push, EKS authentication, Kustomize deployment ve workload doğrulama adımları gerçekleştirilmektedir.
+  Production deployment'ı yetkili reviewer tarafından onaylanmadan AWS EKS'ye deployment yapılmamaktadır. Onay verildikten sonra `deploy-eks` job'ı çalıştırılmakta, ECR image push, EKS authentication, Kustomize deployment ve workload doğrulama adımları gerçekleştirilmektedir.
 
-  `docs/screenshots/47-production-approval-pending.png`, production deployment'ının onay beklediğini; `docs/screenshots/48-production-approval-approved.png` ise onay sonrasında deployment job'ının devam ederek başarıyla tamamlandığını göstermektedir.
+  `docs/screenshots/47-production-deployment-approval-pending.png`, production deployment'ının onay beklediğini; `docs/screenshots/48-production-deployment-approval-granted.png` ise onay sonrasında deployment job'ının devam ederek başarıyla tamamlandığını göstermektedir.
 
   Workflow içerisinde production deployment için:
 
@@ -262,7 +262,7 @@ Bu yapı, production'a yapılan her deployment'ın CI doğrulaması sonrasında 
 ### 7.6 Üst Kriter #7 - İleri Felaket Kurtarma: Off-Cluster Scheduled Backup
 
 - **Otomatik backup ve S3 kanıtı:** `docs/screenshots/49-backup-cronjob-scheduled-success.png`
-- **Açıklama:** MongoDB Atlas verilerinin cluster dışında tutulmasını sağlayan otomatik backup mekanizması AWS EKS üzerinde `mongodb-backup` Kubernetes CronJob ile çalışmaktadır. CronJob `0 2 * * *` schedule'ı (Saat 02.00'de) ve `Europe/Istanbul` timezone'u ile günlük olarak çalışacak şekilde yapılandırılmıştır.
+- **Açıklama:** MongoDB Atlas verilerinin cluster dışında tutulmasını sağlayan otomatik backup mekanizması AWS EKS üzerinde `mongodb-backup` Kubernetes CronJob ile çalışmaktadır. CronJob `0 2 * * *` schedule'ı (Saat 02.00'de) ve `Avrupa/İstanbul` timezone'u ile günlük olarak çalışacak şekilde yapılandırılmıştır.
 
   Backup workload'u `mongodump` ile `sample_training` database'ini `.archive.gz` formatında yedeklemekte ve timestamp'li arşiv dosyasını Amazon S3 üzerindeki `sample_training/` prefix'ine yüklemektedir.
 
@@ -284,7 +284,7 @@ Bu yapı, production'a yapılan her deployment'ın CI doğrulaması sonrasında 
 ### 7.8 ETL Scheduling
 
 - **EKS CronJob schedule görseli:** `docs/screenshots/50-eks-cronjob-schedule.png`
-- **Açıklama:** EKS üzerinde çalışan `etl` CronJob'un saatlik çalışmak üzere `0 * * * *` schedule'ını ve `Europe/Istanbul` timezone'unu kullandığı gösterilmektedir.
+- **Açıklama:** EKS üzerinde çalışan `etl` CronJob'un saatlik çalışmak üzere `0 * * * *` schedule'ını ve `Avrupa/İstanbul` timezone'unu kullandığı gösterilmektedir.
 
 ## 8. Ek Kanıtlar
 

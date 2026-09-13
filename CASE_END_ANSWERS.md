@@ -523,7 +523,7 @@ Evidence: the `Backup and Restore` section of `SUBMISSION_EVIDENCE.md`.
 
 Automatic scheduled backup evidence:
 
-`docs/screenshots/47-backup-cronjob-scheduled-success.png`
+`docs/screenshots/49-backup-cronjob-scheduled-success.png`
 
 ---
 

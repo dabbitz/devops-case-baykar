@@ -47,9 +47,9 @@ Screenshots must not expose real credentials, tokens, passwords, private keys, o
 - **ECR images (backend):** `docs/screenshots/15-ecr-images-backend.png`
 - **ECR images (frontend):** `docs/screenshots/16-ecr-images-frontend.png`
 - **ECR images (ETL):** `docs/screenshots/17-ecr-images-etl.png`
-- **Health check and resource definitions (backend):** `docs/screenshots/39-eks-healthchecks-resources-backend.png`
-- **Health check and resource definitions (frontend):** `docs/screenshots/40-eks-healthchecks-resources-frontend.png`
-- **Health check and resource definitions (ETL):** `docs/screenshots/41-eks-cpu-memory-limits-etl.png`
+- **Health check and resource definitions (backend):** `docs/screenshots/41-eks-healthchecks-resources-backend.png`
+- **Health check and resource definitions (frontend):** `docs/screenshots/42-eks-healthchecks-resources-frontend.png`
+- **Health check and resource definitions (ETL):** `docs/screenshots/43-eks-cpu-memory-limits-etl.png`
 - **Explanation:** The application has been deployed to the `devops-case-eks` cluster on AWS EKS. The backend and frontend Deployments, Service resources, and the Python ETL CronJob are running on EKS. Container images are pulled from Amazon ECR.
 
 Liveness/readiness probes are defined for the backend and frontend Deployments, while CPU and memory resource requests/limits are configured for all main workloads. The backend Deployment uses a controlled RollingUpdate strategy with `maxSurge: 1` and `maxUnavailable: 0`(detailed in Section 7.2).
@@ -115,7 +115,7 @@ All six steps below must be evidenced. It must be clear that the steps were perf
 
 The steps in Sections 6.1–6.6 represent the **manual end-to-end backup and restore test** performed against real application data.
 
-The regular production backup mechanism is separate and is shown under **Section 7.7 - Advanced Criteria #7**, where the automated EKS CronJob → Amazon S3 backup flow is evidenced.
+The regular production backup mechanism is separate and is shown under **Section 7.6 - Advanced Criteria #7**, where the automated EKS CronJob → Amazon S3 backup flow is evidenced.
 
 The following six steps were performed in order on the same `sample_training` database.
 
@@ -197,13 +197,11 @@ Production automated backups are not stored in the local `backups/` directory. T
 
 > The runbook, RPO/RTO targets, backup schedule, and retention limitations are documented in `docs/backup-restore.md`.
 
----
-
 ## 7. Logging, Monitoring, and Advanced Criteria
 
 Add evidence for any implemented logging, monitoring, alerting, Helm, Terraform, security scanning, or other advanced criteria.
 
-The evidence for the implemented logging, monitoring, alerting, security controls, and other advanced criteria is provided below.
+The evidence for the implemented logging, monitoring, alerting, security controls, and other advanced criteria is provided below. Upper criteria 2, 3, 4, 5, 6, and 7 are completed.
 
 ### 7.1 Advanced Criteria #2 - Packaging and Environment Management: Kustomize
 
@@ -243,13 +241,13 @@ The evidence for the implemented logging, monitoring, alerting, security control
 
 ### 7.5 Advanced Criteria #6 - GitOps and Release Strategy: Controlled Production Approval
 
-- **Production approval waiting screenshot:** `docs/screenshots/47-production-approval-pending.png`
-- **Post-approval deployment screenshot:** `docs/screenshots/48-production-approval-approved.png`
-- **Description:** Production deployment is protected by a controlled approval process using the `production` Environment in GitHub Actions. After a successful push to the `main` branch, the `validate-and-build` job completes, after which the `deploy-eks` job enters a waiting state for production approval.
+- **Production approval waiting screenshot:** `docs/screenshots/47-production-deployment-approval-pending.png`
+- **Post-approval deployment screenshot:** `docs/screenshots/48-production-deployment-approval-granted.png`
+- **Explanation:** Production deployment is protected by a controlled approval process using the `production` Environment in GitHub Actions. After a successful push to the `main` branch, the `validate-and-build` job completes, after which the `deploy-eks` job enters a waiting state for production approval.
 
   No deployment to AWS EKS is performed until the production deployment is approved by an authorized reviewer. After approval, the `deploy-eks` job runs and performs the ECR image push, EKS authentication, Kustomize deployment, and workload verification steps.
 
-  `docs/screenshots/47-production-approval-pending.png` shows that the production deployment is waiting for approval, while `docs/screenshots/48-production-approval-approved.png` shows that the deployment job continued and completed successfully after approval.
+  `docs/screenshots/47-production-deployment-approval-pending.png` shows that the production deployment is waiting for approval, while `docs/screenshots/48-production-deployment-approval-granted.png` shows that the deployment job continued and completed successfully after approval.
 
   The workflow defines the production deployment environment as:
 

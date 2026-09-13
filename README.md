@@ -122,7 +122,7 @@ http://[REDACTED].eu-central-1.elb.amazonaws.com/edit/<document-id>
 
 > **Önemli:** Kullanılan adresler, bu çalışma sırasında oluşturulmuş olan mevcut AWS Load Balancer'a aittir. Bu adresler **kalıcı bir production URL'si olarak değerlendirilmemelidir**. Özellikle EKS cluster'ı, Envoy Gateway veya Load Balancer yeniden oluşturulursa AWS yeni bir hostname atayabilir. Ayrıca teslim sonrasında kullanılan AWS kaynaklarının kaldırılması durumunda erişilemez hale gelebilir.
 
-> **Gerçek EKS erişim adresi:** Public repository'de Load Balancer hostname'i `[REDACTED]` olarak gösterilmiştir. Çalışma sırasında kullanılan gerçek erişim adresi teslim edilen `.zip` dosyasının içinde, projenin root'unda, bir `.txt` dosyasında paylaşılmıştır.
+> **Gerçek EKS erişim adresi:** Public repository'de Load Balancer hostname'i `[REDACTED]` olarak gösterilmiştir. Çalışma sırasında kullanılan gerçek erişim adresi teslim edilen `.zip` dosyasının içinde, projenin root'unda, `aws_url.txt` dosyasında paylaşılmıştır.
 
 ### Güncel EKS Erişim Adresini Bulma
 
@@ -571,7 +571,7 @@ Production deployment öncesinde Kustomize çıktısı server-side dry-run ile d
 kubectl apply --dry-run=server -k k8s/overlays/prod
 ```
 
-Ardından production overlay EKS'e uygulanır:
+Ardından production overlay EKS'ye uygulanır:
 
 ```powershell
 kubectl apply -k k8s/overlays/prod
@@ -597,7 +597,7 @@ ETL schedule:
 0 * * * *
 ```
 
-ETL `Europe/Istanbul` timezone'u kullanarak saatlik çalışmaktadır.
+ETL `Avrupa/İstanbul` timezone'u kullanarak saatlik çalışmaktadır.
 
 ETL aynı repository tekrar işlendiğinde `github_id` alanını kullanarak mevcut kaydı günceller.
 
@@ -732,7 +732,7 @@ Deployment job'ı:
 6. EKS cluster'ı için kubeconfig oluşturur.
 7. Kubernetes Secret kaynaklarını günceller.
 8. `k8s/overlays/prod` Kustomize overlay'ini `kubectl apply --dry-run=server -k k8s/overlays/prod` ile doğrular.
-9. Production overlay'ini `kubectl apply -k k8s/overlays/prod` ile EKS'e uygular.
+9. Production overlay'ini `kubectl apply -k k8s/overlays/prod` ile EKS'ye uygular.
 10. Deployment image'larını commit SHA tag'lerine günceller.
 11. Backend ve frontend rollout durumlarını kontrol eder.
 12. Gateway ve HTTPRoute kaynaklarını doğrular.
@@ -835,7 +835,7 @@ Backup schedule:
 Timezone:
 
 ```text
-Europe/Istanbul
+Avrupa/İstanbul
 ```
 
 Backup dosyaları UTC timestamp içeren ayrı archive dosyaları olarak oluşturulmaktadır.

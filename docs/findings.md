@@ -144,13 +144,13 @@ ile doğrulanmaktadır. Geçersiz değerlerde uygun HTTP response döndürülmek
 
 ## Finding 11
 
-**Önem Derecesi:** Yüksek
+**Önem Derecesi:** Orta
 
 **Dosya Yolu:** `mern-project\client\cypress\integration\endToEnd.spec.js`
 
-**Sorun:** Cypress testi yanlış route'a gidiyordu. Test `/records` route'una yönlendirildi. Test URL'si hâlen local test ortamına bağlı olduğundan farklı ortamlarda çalıştırılması gerektiğinde environment/configuration üzerinden yönetilebilir.
+**Sorun:** Cypress testi başlangıçta yanlış route'u ziyaret etmiştir. Bu nedenle beklenen records ekranına ulaşmadan test akışı başarısız olmuştur.
 
-**Çözüm:** Testin başlangıç URL'si `/records` route'una yönlendirilmiştir:
+**Çözüm:** Test başlangıç URL'si uygulamanın mevcut `/records` route'una güncellenmiştir.
 
 ```js
 cy.visit("http://localhost:3000/records");

@@ -8,7 +8,7 @@ Ana deployment ortamı **AWS EKS**'tir. Frontend ve backend Kubernetes `Deployme
 
 AWS ortamında dış HTTP erişimi Envoy Gateway ve HTTPRoute üzerinden sağlanmakta, Envoy Gateway'in `LoadBalancer` Service'i AWS Elastic Load Balancer tarafından dışarıya açılmaktadır.
 
-CI/CD GitHub Actions üzerinden çalışmakta; başarılı `main` branch deployment'larında production deployment öncesinde **controlled production approval** uygulanmaktadır. Yetkili reviewer onayının ardından GitHub OIDC ile AWS IAM Role alınarak image'lar Amazon ECR'a gönderilmekte ve AWS EKS'e deploy edilmektedir.
+CI/CD GitHub Actions üzerinden çalışmakta; başarılı `main` branch deployment'larında production deployment öncesinde **controlled production approval** uygulanmaktadır. Yetkili reviewer onayının ardından GitHub OIDC ile AWS IAM Role alınarak image'lar Amazon ECR'a gönderilmekte ve AWS EKS'ye deploy edilmektedir.
 
 Yerel Docker Desktop Kubernetes ortamı geliştirme ve doğrulama amacıyla korunmuştur.
 
@@ -137,7 +137,6 @@ backend Deployment
 backend-service
         ↓
 Node.js / Express
-
 ```
 
 şeklinde çalışmaktadır.
@@ -325,7 +324,6 @@ overlays/test/
 overlays/prod/
         ↓
 Environment-specific configuration
-
 ```
 
 ---
@@ -446,7 +444,7 @@ Docker image build validation
 Trivy security scan
 ```
 
-`main` branch'ine başarılı push sonrasında gerçek cloud deployment gerçekleştirilir. Production deployment, GitHub Actions `production` Environment'ında tanımlı **controlled production approval** mekanizması nedeniyle yetkili reviewer onayı olmadan EKS'e uygulanmaz.
+`main` branch'ine başarılı push sonrasında gerçek cloud deployment gerçekleştirilir. Production deployment, GitHub Actions `production` Environment'ında tanımlı **controlled production approval** mekanizması nedeniyle yetkili reviewer onayı olmadan EKS'ye uygulanmaz.
 
 Deployment akışı:
 
@@ -461,15 +459,17 @@ GitHub OIDC
    ↓
 AWS IAM Role
    ↓
-Amazon ECR
+Docker image build
    ↓
-Kustomize prod overlay
+Amazon ECR push
    ↓
-AWS EKS
+Kustomize prod overlay validation
+   ↓
+Kustomize deployment → AWS EKS
    ↓
 Kubernetes rollout
    ↓
-Gateway / HTTPRoute
+Gateway / HTTPRoute validation
    ↓
 Backend healthcheck
    ↓
@@ -486,7 +486,7 @@ Deployment job'ı:
 - EKS kubeconfig'i oluşturur.
 - Kubernetes Secret kaynaklarını günceller.
 - Production Kustomize overlay'ini (`k8s/overlays/prod/`) server-side dry-run ile doğrular.
-- Production overlay'ini EKS'e uygular.
+- Production overlay'ini EKS'ye uygular.
 - Deployment image'larını commit SHA ile günceller.
 - Rollout ve dış erişim kontrollerini gerçekleştirir.
 - Gateway ve HTTPRoute kaynaklarını uygular.
@@ -559,7 +559,7 @@ Amazon ECR + AWS EKS
 
 IAM Role'un OIDC trust policy'si ilgili GitHub repository'nin `production` Environment'ı ile sınırlandırılmıştır. Production Environment yalnızca `main` branch'inden gelen deployment'ları kabul edecek şekilde yapılandırılmıştır.
 
-Production deployment'ın EKS'e uygulanmasından önce GitHub Actions `production` Environment'ı üzerinden yetkili reviewer onayı gerekmektedir.
+Production deployment'ın EKS'ye uygulanmasından önce GitHub Actions `production` Environment'ı üzerinden yetkili reviewer onayı gerekmektedir.
 
 EKS tarafında ayrıca EKS Access Entry ve namespace-scoped Kubernetes RBAC kullanılmaktadır.
 
@@ -783,7 +783,7 @@ Trivy
     → Container image / dependency / secret scanning
 
 GitHub OIDC + AWS IAM
-    → Cloud authentication
+    → CI/CD cloud authentication
 ```
 
-Bu ayrıştırma sayesinde frontend, backend ve ETL bağımsız container image'ları ve Kubernetes workload'ları olarak yönetilebilmekte; CI/CD üzerinden source commit ile ilişkilendirilmiş image'lar **controlled production approval sonrasında** AWS EKS'e deploy edilebilmekte ve MongoDB verileri günlük olarak cluster dışındaki Amazon S3 storage'a yedeklenebilmektedir.
+Bu ayrıştırma sayesinde frontend, backend ve ETL bağımsız container image'ları ve Kubernetes workload'ları olarak yönetilebilmekte; CI/CD üzerinden source commit ile ilişkilendirilmiş image'lar **controlled production approval sonrasında** AWS EKS'ye deploy edilebilmekte ve MongoDB verileri günlük olarak cluster dışındaki Amazon S3 storage'a yedeklenebilmektedir.

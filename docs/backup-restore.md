@@ -185,7 +185,7 @@ Backup ve restore sürecinin başarılı olduğunu doğrulamak için:
 
 ## 6. Uçtan uca test sonucu / End-to-end test result
 
-Temel manuel backup/restore E2E senaryosu 9 Eylül 2026 tarihinde gerçekleştirilmiştir. Otomatik EKS backup senaryosu ise 13 Eylül 2026 tarihinde gerçek scheduler çalışması ile doğrulanmıştır.
+Temel manuel backup/restore E2E senaryosu 10 Eylül 2026 tarihinde gerçekleştirilmiştir. Otomatik EKS backup senaryosu ise 13 Eylül 2026 tarihinde gerçek scheduler çalışması ile doğrulanmıştır.
 
 | # | Adım / Step                                      | Sonuç / Result                                                                                                                                                   | Kanıt / Evidence                                                                                                                                                                  |
 | - | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
