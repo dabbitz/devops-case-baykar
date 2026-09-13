@@ -83,15 +83,19 @@ Which issues did you intentionally leave unresolved or out of scope? Explain the
 
 **Answer:**
 
-The core case requirements have been completed, while some advanced production-level features were left out of scope.
+The core case requirements and the selected advanced criteria (2, 3, 4, 5, 6, and 7) have been completed. **However, the first advanced criterion, a full Infrastructure as Code approach, was not implemented as part of this case; the EKS infrastructure was managed using the existing declarative configuration and AWS/EKS tools, but a complete Terraform/OpenTofu-based IaC solution was not developed.**
 
-Full IaC with Terraform/OpenTofu, Prometheus/Grafana-based advanced monitoring, HPA/PDB and multi-node high availability, GitOps, canary/blue-green deployment, PITR, automated restore verification, S3 Lifecycle-based automatic retention, and distributed tracing were not implemented.
+In addition, the following advanced production features were not implemented. The needs addressed by these features were instead covered by simpler and more appropriate approaches given the scope and requirements of the case:
 
-Accordingly, **controlled production approval has been implemented**. Successful deployments from the `main` branch through the GitHub Actions `production` Environment are applied to EKS only after approval from an authorized reviewer.
+- **Prometheus/Grafana-based centralized monitoring:** Centralized monitoring was not implemented; instead, verifiable alert scenarios based on ETL and healthcheck checks were implemented.
+- **HPA/PDB and multi-node high availability:** The existing single-node resource structure was retained; deployment resilience was provided through controlled `RollingUpdate`, readiness/liveness probes, and resource management.
+- **GitOps-based deployment:** A GitOps controller such as Argo CD or Flux was not used; production release control was provided through GitHub Actions, Kustomize, and a manual approval mechanism.
+- **Canary / blue-green deployment:** Controlled `RollingUpdate` was used instead of these release models.
+- **PITR and automated restore verification:** Daily automated S3 backups were implemented, along with a manual end-to-end restore test to verify backup and recoverability.
+- **S3 Lifecycle-based automatic retention:** No formal retention policy was defined; within the scope of this case, storing daily backups as separate archive objects in S3 was considered sufficient.
+- **Distributed tracing:** No centralized tracing infrastructure was implemented; at the current scale, logs, healthchecks, rollout checks, and alert checks were used for operational troubleshooting.
 
-Also, Kustomize-based environment management, controlled `RollingUpdate`, CPU/memory resource management, verifiable alert checks, Trivy image/dependency/secret scanning, and daily automated MongoDB backup to cluster-external Amazon S3 were **implemented and verified** in the actual EKS environment.
-
-The omitted areas can be added separately according to production scaling, observability, release management, and disaster recovery requirements.
+These decisions were made to meet the case requirements without introducing unnecessary infrastructure and operational complexity.
 
 ---
 
@@ -178,21 +182,13 @@ frontend-service → ClusterIP :80
 backend-service  → ClusterIP :5050
 ```
 
-The frontend and backend do not need to be directly exposed to the internet, so NodePort and separate LoadBalancer Services were not used. External traffic enters through a single path:
+Since the frontend and backend do not need to be directly exposed to the internet, NodePort and separate LoadBalancer Services were not used. External traffic is routed through a single entry point:
 
 ```text
-AWS Load Balancer
-       ↓
-Envoy Gateway
-       ↓
-HTTPRoute
-       ↓
-Services
+AWS Load Balancer → Envoy Gateway → HTTPRoute → Service
 ```
 
-Headless or ExternalName Services were also unnecessary because the application does not require custom Pod DNS discovery or external service proxying.
-
-This prevents the backend from being directly exposed through NodePort or an additional LoadBalancer.
+Headless or ExternalName Services were also not used because the application does not require them.
 
 Manifests: `k8s/` and `k8s/eks/`
 
