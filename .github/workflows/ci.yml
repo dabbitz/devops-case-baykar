@@ -112,6 +112,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: validate-and-build
     runs-on: ubuntu-latest
+    environment: production
 
     permissions:
       contents: read
