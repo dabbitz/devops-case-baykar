@@ -169,7 +169,7 @@ Script de aynı `mongodump` yöntemini kullanmaktadır. Bu local backup işlemi 
 - **Yedeğin saklandığı konum:** `backups/sample-training-backup`
 - **Açıklama:** Tüm `sample_training` database'i yedeklenmiştir. Backup çıktısında `sample_training.records` için 1 document ve `sample_training.github_repositories` için 1 document yedeklendiği görülmektedir.
 
-Production ortamındaki otomatik backup'lar ise local `backups/` dizininde değil, Amazon S3 üzerinde timestamp'li archive dosyaları olarak saklanmaktadır. Bu yapı 7.7'de gösterilmektedir.
+Production ortamındaki otomatik backup'lar ise local `backups/` dizininde değil, Amazon S3 üzerinde timestamp'li archive dosyaları olarak saklanmaktadır. Bu yapı 7.6'de gösterilmektedir.
 
 ### 6.3 Collection veya veritabanının silinmesi
 

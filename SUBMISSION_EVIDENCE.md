@@ -169,7 +169,7 @@ The script uses the same `mongodump` method. This local backup operation is only
 - **Backup storage location:** `backups/sample-training-backup`
 - **Explanation:** The entire `sample_training` database was backed up. The backup output shows 1 document for `sample_training.records` and 1 document for `sample_training.github_repositories`.
 
-Production automated backups are not stored in the local `backups/` directory. They are stored as timestamped archive files in Amazon S3, as shown in Section 7.7.
+Production automated backups are not stored in the local `backups/` directory. They are stored as timestamped archive files in Amazon S3, as shown in Section 7.6.
 
 ### 6.3 Dropping the collection or database
 
